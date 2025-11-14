@@ -1,0 +1,229 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+//! user model
+model User {
+  id String @id @default(uuid())
+  email String @unique
+  password String
+  role String @default("USER")
+  createdAt DateTime @default(now())
+}
+
+//! blacklisted model
+model Blacklisted {
+  id String @id @default(uuid())
+  token String @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime 
+}
+
+//! campaign
+model Campaigns {
+  id String @id @default(uuid())
+  title Json
+  description Json
+  summary Json
+  keyPoints Json
+  imageUrl Json
+  goalAmount Float
+  raisedAmount Float @default(0)
+  location Json
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+
+  status Status
+
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+ 
+
+  comments comment[]
+  donation Donation[]
+}
+
+//! enum status
+enum Status {
+  Active
+  Completed
+  Inactive
+}
+
+//! category 
+model Category {
+  id String @id @default(uuid())
+  name Json @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime? @updatedAt 
+
+  campaigns Campaigns[]
+  blogs Blog[]
+}
+
+//! comment
+model comment {
+  id String @id @default(uuid())
+  name String
+  email String
+  comment String @db.Text
+  campaignId String?
+  blogId String?
+  eventId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parentCommentId String?
+
+  likeCount Int @default(0)
+  
+  status commentStatus @default(PENDING)
+
+
+  campaign Campaigns? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  blog Blog? @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+//! self relation
+  replies comment[] @relation("commentReplies")
+  parent comment? @relation("commentReplies", fields: [parentCommentId], references: [id])
+}
+
+//! comment status
+enum commentStatus  {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+
+
+//! blog
+model Blog {
+  id String @id @default(uuid())
+  creator Json
+  title Json
+  description Json
+  summary Json
+  quote Json
+  quoteAuthor Json
+  tags Json
+  keyPoints Json
+  location Json
+  imageUrl Json
+
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments comment[]
+}
+
+//! Member
+model Member {
+  id String @id @default(uuid())
+  name Json
+  position Json
+  description Json
+  about Json
+  title Json?
+  keyPoints Json
+  imageUrl Json
+  facebookUrl String?
+  twitterUrl String?
+  instagramUrl String?
+  linkedInUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+//! Banner
+model Banner {
+  id String @id @default(uuid())
+  title Json
+  subtitle Json
+  priority Int @unique
+  imageUrl Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+//! form
+model Form {
+  id String @id @default(uuid())
+  formType String
+  firstName String?
+  lastName String?
+  email String
+  phone String
+  address String?
+  occupation String?
+  message String @db.Text
+  isViewed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+//! feedback
+model Feedback {
+  id String @id @default(uuid())
+  name String
+  designation String
+  imageUrl Json?
+  feedback String @db.Text
+  rating Int
+  status commentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+}
+
+model Donation {
+  id String @id @default(uuid())
+  razorpayId String @unique
+  amount Float
+  status String @default("created")
+  campaignId String
+  campaign Campaigns @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model EmailSubscriber {
+  id String @id @default(uuid())
+  email String @unique
+  createdAt DateTime @default(now())
+}
+
+model Event {
+  id String @id @default(uuid())
+  title Json
+  description Json
+  summary Json
+  keyPoints Json
+  location Json
+  latitude Float
+  longitude Float
+  imageUrl Json
+  startTime DateTime
+  endTime DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments comment[]
+}
