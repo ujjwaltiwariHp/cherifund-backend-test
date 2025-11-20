@@ -291,6 +291,14 @@ export const updateEvent = async (req, res, next) =>{
     const {eventId} = req.params
     const {title, description, summary, keyPoints = [], location, latitude, longitude, startTime, endTime, existingImages = []} = req.body
     try {
+        const parsedTitle = typeof title === "string" ? JSON.parse(title) : title;
+        const parsedDescription = typeof description === "string" ? JSON.parse(description) : description;
+        const parsedSummary = typeof summary === "string" ? JSON.parse(summary) : summary;
+        const parsedLocation = typeof location === "string" ? JSON.parse(location) : location;  
+
+        const latitudeNumber = parseFloat(latitude)
+        const longitudeNumber = parseFloat(longitude)
+
         const existingEvent = await prisma.event.findUnique({
             where : {
                 id : eventId
@@ -341,14 +349,14 @@ export const updateEvent = async (req, res, next) =>{
                 id : eventId
             },
             data : {
-                title : title ?? existingEvent.title,
-                description : description ?? existingEvent.description,
-                summary : summary ?? existingEvent.summary,
+                title : parsedTitle ?? existingEvent.title,
+                description : parsedDescription ?? existingEvent.description,
+                summary : parsedSummary ?? existingEvent.summary,
                 keyPoints : parsedKeyPoints,
                 imageUrl : imageObj,
-                location : location ??existingEvent.location,
-                latitude : latitude ?? existingEvent.latitude,
-                longitude : longitude ?? existingEvent.longitude,
+                location : parsedLocation ??existingEvent.location,
+                latitude : latitudeNumber ?? existingEvent.latitude,
+                longitude : longitudeNumber ?? existingEvent.longitude,
                 startTime : startTime ?? existingEvent.startTime,
                 endTime : endTime ?? existingEvent.endTime
             }
