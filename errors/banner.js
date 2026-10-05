@@ -32,12 +32,12 @@ export const bannerError = {
     },
 
     Title_Length : {
-        message : "Title length must be less than 40",
+        message : "Title must be 60 words or less",
         status : httpStatus.BAD_REQUEST
     },
 
     Subtitle_Length : {
-        message : "Subtitle length must be less than 35",
+        message : "Subtitle must be 60 words or less",
         status : httpStatus.BAD_REQUEST
     }
 }
