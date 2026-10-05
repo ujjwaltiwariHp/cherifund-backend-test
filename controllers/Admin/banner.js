@@ -17,10 +17,12 @@ export const addBanner = async (req, res, next) =>{
         if(!title || !subtitle || !priority)
             return next(errorHandler(bannerError.Fields_Required))
 
-        if(parsedTitle.en.length > 40)
+        const countWords = (text) => text ? text.trim().split(/\s+/).length : 0;
+
+        if(countWords(parsedTitle.en) > 60 || countWords(parsedTitle.hi) > 60)
             return next(errorHandler(bannerError.Title_Length))
 
-        if(parsedSubtitle.en.length > 35)
+        if(countWords(parsedSubtitle.en) > 60 || countWords(parsedSubtitle.hi) > 60)
             return next(errorHandler(bannerError.Subtitle_Length))
         
         const parsedPriority = parseInt(priority)
@@ -205,6 +207,14 @@ export const updateBanner = async (req, res, next)  =>{
 
        const parsedTitle = title ? (typeof title === "string" ? JSON.parse(title) : title) : existingBanner.title
        const parsedSubtitle = subtitle ? (typeof subtitle === "string" ? JSON.parse(subtitle) : subtitle) : existingBanner.subtitle 
+
+        const countWords = (text) => text ? text.trim().split(/\s+/).length : 0;
+
+        if(countWords(parsedTitle.en) > 60 || countWords(parsedTitle.hi) > 60)
+            return next(errorHandler(bannerError.Title_Length))
+
+        if(countWords(parsedSubtitle.en) > 60 || countWords(parsedSubtitle.hi) > 60)
+            return next(errorHandler(bannerError.Subtitle_Length))
 
         const parsedPriority = priority !== undefined ? parseInt(priority) : existingBanner.priority
 
