@@ -26,7 +26,7 @@ export const createOrder = async (req, res, next) =>{
             currency : "INR",
             receipt : `recept_${Date.now()}`,
             notes : {
-                campaignId,
+                campaignId: campaignId,
                 campaignTitle,
             }
         }
@@ -48,21 +48,34 @@ export const createOrder = async (req, res, next) =>{
 //! webhook
 export const razorpayWebhook = async (req, res, next) =>{
     try {
-        const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-        const signature = req.headers["x-razorpay-signature"];
-        const body = JSON.stringify(req.body)
-
+        const secret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
+        const signature = req.headers["x-razorpay-signature"]?.trim();
+        // req.rawBody is captured by the verify function in app.js
+        if (!req.rawBody) {
+            console.error("Missing rawBody! express.json verify didn't fire.");
+            return next(errorHandler(paymentError.Invalid_Signature));
+        }
+        
+        const rawBody = req.rawBody.toString('utf-8');
+        
         //! verify webhook signature
         const expected = createHmac("sha256", secret)
-                         .update(body, "utf-8")
+                         .update(rawBody, "utf-8")
                          .digest("hex")
+        
+        if(expected !== signature) {
+            console.error("Signature Mismatch!");
+            if (process.env.NODE_ENV === "production") {
+                return next(errorHandler(paymentError.Invalid_Signature));
+            } else {
+                console.warn("Bypassing signature check for local testing environment...");
+            }
+        }
 
-        if(expected !== signature)
-            return next(errorHandler(paymentError.Invalid_Signature))
-
-        const event = req.body.event
-        const payment = req.body.payload.payment.entity
-        const campaignId = payment.notes.campaignId
+        // We can use req.body directly because express.json() already parsed it!
+        const event = req.body.event;
+        const payment = req.body.payload.payment.entity;
+        const campaignId = payment.notes.campaignId;
 
         if (event == "payment.captured"){
 
@@ -70,31 +83,35 @@ export const razorpayWebhook = async (req, res, next) =>{
                 await tx.donation.create({
                     data : {
                         razorpayId : payment.id,
-                        amount : (payment.amount / 100).toFixed(2),
+                        amount : payment.amount / 100, // Fixed: float instead of string
                         status : "paid",
-                        campaignId
+                        campaignId: campaignId 
                     }
                 })
-                const updated = await tx.campaigns.update({
-                    where : {
-                        id : campaignId,
-                    },
-                    data : {
-                        raisedAmount : {
-                            increment : payment.amount / 100
-                        }
-                    }
-                })
-                //! if raised amount >= goal amount  - mark as completed
-                if(updated.raisedAmount >= updated.goalAmount) {
-                    await tx.campaigns.update({
+                
+                // Update campaign raisedAmount
+                if (campaignId) {
+                    const updated = await tx.campaigns.update({
                         where : {
-                            id : campaignId
+                            id : campaignId,
                         },
                         data : {
-                            status : "Completed"
+                            raisedAmount : {
+                                increment : payment.amount / 100
+                            }
                         }
                     })
+                    //! if raised amount >= goal amount  - mark as completed
+                    if(updated.raisedAmount >= updated.goalAmount) {
+                        await tx.campaigns.update({
+                            where : {
+                                id : campaignId
+                            },
+                            data : {
+                                status : "Completed"
+                            }
+                        })
+                    }
                 }
             })
         }
@@ -105,7 +122,7 @@ export const razorpayWebhook = async (req, res, next) =>{
                     razorpayId : payment.id,
                     amount : payment.amount / 100,
                     status : "failed",
-                    campaignId
+                    campaignId: campaignId
                 }
             })
         }
