@@ -9,13 +9,14 @@
     "prisma:migrate": "npx prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
     "start:prod": "node index.js",
-
     "start": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed && npm run start:prod"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@neon/config": "^1.8.4",
+    "@neon/env": "^1.5.1",
     "@prisma/client": "^6.15.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.7.0",
