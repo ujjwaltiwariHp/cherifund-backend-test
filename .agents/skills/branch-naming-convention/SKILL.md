@@ -26,10 +26,11 @@ Before creating the branch, you MUST:
 3. If no branches exist yet, start the count at `0001`.
 
 ## Instructions
-1. Run `git ls-remote --heads origin` or `git branch -a` to see existing remote branches.
-2. Determine the next available count for `PROD` (if fixing a bug) or `DEV` (if adding a feature).
-3. Create the branch locally: `git checkout -b <branch-name>`.
-4. Ensure you use lowercase and hyphens for the `<issue-name>` or `<feature-name>` suffix.
+1. Switch to the main branch and pull the latest changes: `git checkout main && git pull`.
+2. Run `git ls-remote --heads origin` or `git branch -a` to see existing remote branches.
+3. Determine the next available count for `PROD` (if fixing a bug) or `DEV` (if adding a feature).
+4. Create the branch locally: `git checkout -b <branch-name>`.
+5. Ensure you use lowercase and hyphens for the `<issue-name>` or `<feature-name>` suffix.
 
 ## Merging to Main
 Whenever the user asks you to merge a branch into `main` (or `master`), you MUST:

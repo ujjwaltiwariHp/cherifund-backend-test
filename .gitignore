@@ -4,3 +4,4 @@ node_modules
 logs
 
 /generated/prisma
+.neon
