@@ -195,9 +195,19 @@ model Feedback {
 
 model Donation {
   id String @id @default(uuid())
-  razorpayId String @unique
+  razorpayId String? @unique
+  orderId String? @unique
   amount Float
   status String @default("created")
+  paymentMethod String @default("online")
+  
+  firstName String?
+  lastName String?
+  email String?
+  phone String?
+  address String?
+  message String? @db.Text
+
   campaignId String
   campaign Campaigns @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
