@@ -77,7 +77,7 @@ export const razorpayWebhook = async (req, res, next) =>{
         const payment = req.body.payload.payment.entity;
         const campaignId = payment.notes.campaignId;
 
-        if (event == "payment.captured"){
+        if (event == "payment.captured" || event == "payment.authorized"){
 
             await prisma.$transaction(async(tx) => {
                 await tx.donation.create({
