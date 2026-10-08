@@ -28,9 +28,9 @@ jobs:
       id: create-branch
       uses: neondatabase/create-branch-action@v5
       with:
-        project_id: ${{ secrets.NEON_PROJECT_ID }}
+        project_id: ${{ secrets.NEONPROJECTID }}
         branch_name: pr-${{ github.event.number }}-${{ github.run_id }}
-        api_key: ${{ secrets.NEON_API_KEY }}
+        api_key: ${{ secrets.NEONAPIKEY }}
         prisma: true
 
     - name: Prisma Validate
