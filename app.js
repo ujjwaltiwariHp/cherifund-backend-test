@@ -9,7 +9,11 @@ import { razorpayWebhook } from "./controllers/web/payment.js"
 const app = express()
 
 app.use(cors())
-app.post("/api/V1/payment/razorpay-webhook", express.raw({ type: "application/json" }), razorpayWebhook);
+app.post("/api/V1/payment/razorpay-webhook", express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}), razorpayWebhook);
 app.use(express.json())
 app.use(cookieParser())
 
