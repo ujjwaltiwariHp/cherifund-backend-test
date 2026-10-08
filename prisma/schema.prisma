@@ -154,13 +154,17 @@ model Member {
 //! Banner
 model Banner {
   id String @id @default(uuid())
+  pageName String @default("Home")
   title Json
   subtitle Json
-  priority Int @unique
+  description Json?
+  priority Int
   imageUrl Json
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([pageName, priority])
 }
 
 
