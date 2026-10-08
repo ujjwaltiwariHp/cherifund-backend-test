@@ -23,3 +23,20 @@ jobs:
       run: |
         echo "Running syntax check on all JS files..."
         find . -name "*.js" -not -path "./node_modules/*" -exec node -c {} \;
+
+    - name: Create Neon Branch
+      id: create-branch
+      uses: neondatabase/create-branch-action@v5
+      with:
+        project_id: ${{ secrets.NEON_PROJECT_ID }}
+        branch_name: pr-${{ github.event.number }}-${{ github.run_id }}
+        api_key: ${{ secrets.NEON_API_KEY }}
+        prisma: true
+
+    - name: Prisma Validate
+      run: npx prisma validate
+
+    - name: Prisma Database Push Test
+      env:
+        DATABASE_URL: ${{ steps.create-branch.outputs.db_url }}
+      run: npx prisma db push
