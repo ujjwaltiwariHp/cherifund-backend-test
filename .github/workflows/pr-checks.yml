@@ -1,0 +1,25 @@
+name: Backend PR Checks
+
+on:
+  pull_request:
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: npm ci || npm install
+
+    - name: Syntax Check
+      run: |
+        echo "Running syntax check on all JS files..."
+        find . -name "*.js" -not -path "./node_modules/*" -exec node -c {} \;
