@@ -202,6 +202,15 @@ model Donation {
   razorpayId String? @unique
   amount Float
   status String @default("created")
+  paymentMethod String @default("online")
+  
+  firstName String?
+  lastName String?
+  email String?
+  phone String?
+  address String?
+  message String? @db.Text
+
   campaignId String
   campaign Campaigns @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
