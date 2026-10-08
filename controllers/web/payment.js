@@ -8,7 +8,7 @@ import {createHmac} from "node:crypto"
 
 //! create order
 export const createOrder = async (req, res, next) =>{
-    const {amount, campaignId, campaignTitle} = req.body
+    const {amount, campaignId, campaignTitle, firstName, lastName, email, phone, address, message, paymentMethod} = req.body
     try {
         if(!amount)
             return next(errorHandler(paymentError.Amount_Required))
@@ -20,6 +20,22 @@ export const createOrder = async (req, res, next) =>{
         })
         if(!existingCampaign)
             return next(errorHandler(paymentError.Not_Exists))
+            
+        if (paymentMethod === "offline") {
+             const donation = await prisma.donation.create({
+                 data: {
+                     amount: amount,
+                     status: "offline",
+                     paymentMethod: "offline",
+                     campaignId: campaignId,
+                     firstName, lastName, email, phone, address, message
+                 }
+             });
+             return res.status(httpStatus.CREATED).json({
+                 msg: "Offline donation logged successfully",
+                 donationId: donation.id
+             });
+        }
 
         const options = {
             amount : amount * 100,
@@ -32,6 +48,17 @@ export const createOrder = async (req, res, next) =>{
         }
 
         const order = await razorpay.orders.create(options)
+        
+        await prisma.donation.create({
+             data: {
+                 orderId: order.id,
+                 amount: amount,
+                 status: "created",
+                 paymentMethod: "online",
+                 campaignId: campaignId,
+                 firstName, lastName, email, phone, address, message
+             }
+        });
 
         res.status(httpStatus.CREATED).json({
             orderId : order.id,
@@ -76,18 +103,34 @@ export const razorpayWebhook = async (req, res, next) =>{
         const event = req.body.event;
         const payment = req.body.payload.payment.entity;
         const campaignId = payment.notes.campaignId;
+        const orderId = payment.order_id;
 
         if (event == "payment.captured" || event == "payment.authorized"){
 
             await prisma.$transaction(async(tx) => {
-                await tx.donation.create({
-                    data : {
-                        razorpayId : payment.id,
-                        amount : payment.amount / 100, // Fixed: float instead of string
-                        status : "paid",
-                        campaignId: campaignId 
-                    }
-                })
+                const existingDonation = await tx.donation.findUnique({
+                    where: { orderId: orderId }
+                });
+
+                if (existingDonation) {
+                    await tx.donation.update({
+                        where: { orderId: orderId },
+                        data: {
+                            razorpayId: payment.id,
+                            status: "paid"
+                        }
+                    });
+                } else {
+                    await tx.donation.create({
+                        data : {
+                            orderId: orderId,
+                            razorpayId : payment.id,
+                            amount : payment.amount / 100,
+                            status : "paid",
+                            campaignId: campaignId 
+                        }
+                    });
+                }
                 
                 // Update campaign raisedAmount
                 if (campaignId) {
@@ -117,14 +160,28 @@ export const razorpayWebhook = async (req, res, next) =>{
         }
 
         if(event == "payment.failed"){
-            await prisma.donation.create({
-                data : {
-                    razorpayId : payment.id,
-                    amount : payment.amount / 100,
-                    status : "failed",
-                    campaignId: campaignId
-                }
-            })
+            const existingDonation = await prisma.donation.findUnique({
+                where: { orderId: orderId }
+            });
+            if (existingDonation) {
+                await prisma.donation.update({
+                    where: { orderId: orderId },
+                    data: {
+                        razorpayId: payment.id,
+                        status: "failed"
+                    }
+                });
+            } else {
+                await prisma.donation.create({
+                    data : {
+                        orderId: orderId,
+                        razorpayId : payment.id,
+                        amount : payment.amount / 100,
+                        status : "failed",
+                        campaignId: campaignId
+                    }
+                });
+            }
         }
 
         res.status(httpStatus.OK).json({

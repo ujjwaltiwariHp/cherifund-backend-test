@@ -6,13 +6,23 @@ import { errorHandler } from "../../util/errorHandler.js"
 import { pickLanguage } from "../../util/languageHelper.js"
 import { logError } from "../../util/logHelper.js"
 
+const ALLOWED_PAGES = [
+    "Home", "About Us", "Campaign", "Donate Us", 
+    "Become Volunteer", "Events", "Team", "Sponsors", 
+    "Blog", "Contact Us"
+];
+
 //! add banner
 export const addBanner = async (req, res, next) =>{
-   const {title, subtitle, priority} = req.body
+   const {title, subtitle, priority, pageName, description} = req.body
     try {
+        if(!pageName || !ALLOWED_PAGES.includes(pageName)) {
+            return next(errorHandler(bannerError.PageName_Invalid))
+        }
 
        const parsedTitle = typeof title === "string" ? JSON.parse(title) : title;
        const parsedSubtitle = typeof subtitle === "string" ? JSON.parse(subtitle) : subtitle;
+       const parsedDescription = description ? (typeof description === "string" ? JSON.parse(description) : description) : null;
 
         if(!title || !subtitle || !priority)
             return next(errorHandler(bannerError.Fields_Required))
@@ -24,6 +34,11 @@ export const addBanner = async (req, res, next) =>{
 
         if(countWords(parsedSubtitle.en) > 60 || countWords(parsedSubtitle.hi) > 60)
             return next(errorHandler(bannerError.Subtitle_Length))
+
+        if(parsedDescription) {
+            if(countWords(parsedDescription.en) > 60 || countWords(parsedDescription.hi) > 60)
+                return next(errorHandler(bannerError.Description_Length))
+        }
         
         const parsedPriority = parseInt(priority)
 
@@ -33,13 +48,14 @@ export const addBanner = async (req, res, next) =>{
         if(parsedPriority < 1 || parsedPriority > 10)
             return next(errorHandler(bannerError.Priority_Number))
 
-        const totalBanners = await prisma.banner.count()
+        const totalBanners = await prisma.banner.count({ where: { pageName } })
 
         if(totalBanners >= 10)
             return next(errorHandler(bannerError.Limit_Exceed))
 
-        //! get all banner priority
+        //! get all banner priority for this page
         const allBanners = await prisma.banner.findMany({
+            where: { pageName },
             select : {id : true, priority : true},
             orderBy : {priority : "asc"}
         })
@@ -71,8 +87,10 @@ export const addBanner = async (req, res, next) =>{
 
         const banner = await prisma.banner.create({
             data : {
+                pageName,
                 title : parsedTitle,
                 subtitle : parsedSubtitle,
+                description: parsedDescription,
                 priority : parsedPriority,
                 imageUrl : imageObj
             }
@@ -90,7 +108,7 @@ export const addBanner = async (req, res, next) =>{
 
 //! get all banner
 export const getAllBanner = async (req, res, next) =>{
-    const {page = 1, limit = 10, title, subtitle, priority} = req.query
+    const {page = 1, limit = 10, title, subtitle, priority, pageName} = req.query
     const lang = req.lang
     try {
         const pageNumber = parseInt(page)
@@ -101,27 +119,26 @@ export const getAllBanner = async (req, res, next) =>{
 
         let whereCondition = {}
 
+        if(pageName){
+            whereCondition.pageName = pageName;
+        }
+
         if(priority && !isNaN(priority)){
-            whereCondition = { priority: parseInt(priority) }
+            whereCondition.priority = parseInt(priority);
         }
-        else if(title && title.trim() != ""){
-            whereCondition = {
-                OR : [
-                    { title: { path: ["en"], string_contains: title, mode: "insensitive" } },
-                    { title: { path: ["hi"], string_contains: title, mode: "insensitive" } }
-                ]
-            }
+        if(title && title.trim() != ""){
+            whereCondition.OR = [
+                ...(whereCondition.OR || []),
+                { title: { path: ["en"], string_contains: title, mode: "insensitive" } },
+                { title: { path: ["hi"], string_contains: title, mode: "insensitive" } }
+            ]
         }
-        else if(subtitle && subtitle.trim() != ""){
-            whereCondition = {
-                OR: [
-                    { subtitle: { path: ["en"], string_contains: subtitle, mode: "insensitive" } },
-                    { subtitle: { path: ["hi"], string_contains: subtitle, mode: "insensitive" } },
-                ],
-            };
-        }
-        else {
-            whereCondition = {}
+        if(subtitle && subtitle.trim() != ""){
+            whereCondition.OR = [
+                ...(whereCondition.OR || []),
+                { subtitle: { path: ["en"], string_contains: subtitle, mode: "insensitive" } },
+                { subtitle: { path: ["hi"], string_contains: subtitle, mode: "insensitive" } },
+            ];
         }
 
         const totalBanners = await prisma.banner.count({where : whereCondition})
@@ -143,8 +160,10 @@ export const getAllBanner = async (req, res, next) =>{
         return {
 
             id : banner.id,
+            pageName: banner.pageName,
             title :pickLanguage(banner.title, FinalLang),
             subtitle :pickLanguage(banner.subtitle, FinalLang),
+            description: pickLanguage(banner.description, FinalLang),
             priority : banner.priority,
             image : banner.imageUrl ? banner.imageUrl.url : null
         }
@@ -179,8 +198,10 @@ export const getBannerById = async (req, res, next) =>{
 
         const formatted = {
             id : existingBanner.id,
+            pageName: existingBanner.pageName,
             title : existingBanner.title,
             subtitle : existingBanner.subtitle,
+            description: existingBanner.description,
             priority : existingBanner.priority,            
             image : existingBanner.imageUrl ? existingBanner.imageUrl.url : null
         }
@@ -195,7 +216,7 @@ export const getBannerById = async (req, res, next) =>{
 //! update banner
 export const updateBanner = async (req, res, next)  =>{
     const {bannerId} = req.params
-    const {title, subtitle, priority} = req.body
+    const {title, subtitle, priority, pageName, description} = req.body
     try {
         const existingBanner = await prisma.banner.findUnique({
             where : {
@@ -205,8 +226,14 @@ export const updateBanner = async (req, res, next)  =>{
         if(!existingBanner)
             return next(errorHandler(bannerError.Not_Exist))
 
+        const targetPageName = pageName || existingBanner.pageName;
+        if(pageName && !ALLOWED_PAGES.includes(pageName)) {
+            return next(errorHandler(bannerError.PageName_Invalid))
+        }
+
        const parsedTitle = title ? (typeof title === "string" ? JSON.parse(title) : title) : existingBanner.title
        const parsedSubtitle = subtitle ? (typeof subtitle === "string" ? JSON.parse(subtitle) : subtitle) : existingBanner.subtitle 
+       const parsedDescription = description ? (typeof description === "string" ? JSON.parse(description) : description) : existingBanner.description
 
         const countWords = (text) => text ? text.trim().split(/\s+/).length : 0;
 
@@ -216,17 +243,27 @@ export const updateBanner = async (req, res, next)  =>{
         if(countWords(parsedSubtitle.en) > 60 || countWords(parsedSubtitle.hi) > 60)
             return next(errorHandler(bannerError.Subtitle_Length))
 
+        if(parsedDescription) {
+            if(countWords(parsedDescription.en) > 60 || countWords(parsedDescription.hi) > 60)
+                return next(errorHandler(bannerError.Description_Length))
+        }
+
         const parsedPriority = priority !== undefined ? parseInt(priority) : existingBanner.priority
 
 
         if(parsedPriority < 1 || parsedPriority > 10)
             return next(errorHandler(bannerError.Priority_Number))
 
-        if(parsedPriority !== existingBanner.priority){
+        if(parsedPriority !== existingBanner.priority || targetPageName !== existingBanner.pageName){
             const targetBanner = await prisma.banner.findUnique({
-                where : {priority : parsedPriority}
+                where : {
+                    pageName_priority: {
+                        pageName: targetPageName,
+                        priority: parsedPriority
+                    }
+                }
             })
-            if(targetBanner){
+            if(targetBanner && targetBanner.id !== existingBanner.id){
                 await prisma.banner.update({
                     where : {id : targetBanner.id},
                     data : {priority : 0}
@@ -234,7 +271,7 @@ export const updateBanner = async (req, res, next)  =>{
 
              await prisma.banner.update({
                 where : {id : existingBanner.id},
-                data : {priority : parsedPriority}
+                data : {priority : parsedPriority, pageName: targetPageName}
              })   
 
              await prisma.banner.update({
@@ -245,7 +282,7 @@ export const updateBanner = async (req, res, next)  =>{
             else{
                 await prisma.banner.update({
                     where : {id : existingBanner.id},
-                    data : {priority : parsedPriority}
+                    data : {priority : parsedPriority, pageName: targetPageName}
                 })
             }
         }
@@ -272,6 +309,8 @@ export const updateBanner = async (req, res, next)  =>{
             data : {
                 title : parsedTitle,
                 subtitle : parsedSubtitle,
+                description : parsedDescription,
+                pageName: targetPageName,
                 imageUrl : imageObj
             }
         })
@@ -308,16 +347,18 @@ export const deleteBanner = async (req, res, next) =>{
         })
 
         //! Check if any banners have priority greater than the deleted one
-        const bannerToShift = await prisma.banner.findFirst({
+        const bannerToShiftFirst = await prisma.banner.findFirst({
             where : {
+                pageName: existingBanner.pageName,
                 priority : {
                     gt : existingBanner.priority
                 }
             }
         })
-        if(bannerToShift) {
+        if(bannerToShiftFirst) {
             const bannerToShift = await prisma.banner.findMany({
                 where : {
+                    pageName: existingBanner.pageName,
                     priority : {
                         gt : existingBanner.priority
                     }

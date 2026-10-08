@@ -1,0 +1,44 @@
+name: Backend PR Checks
+
+on:
+  pull_request:
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: npm ci || npm install
+
+    - name: Syntax Check
+      run: |
+        echo "Running syntax check on all JS files..."
+        find . -name "*.js" -not -path "./node_modules/*" -exec node -c {} \;
+
+    - name: Create Neon Branch
+      id: create-branch
+      uses: neondatabase/create-branch-action@v5
+      with:
+        project_id: ${{ secrets.NEONPROJECTID }}
+        branch_name: pr-${{ github.event.number }}-${{ github.run_id }}
+        api_key: ${{ secrets.NEONAPIKEY }}
+        prisma: true
+
+    - name: Prisma Validate
+      env:
+        DATABASE_URL: ${{ steps.create-branch.outputs.db_url }}
+      run: npx prisma validate
+
+    - name: Prisma Database Push Test
+      env:
+        DATABASE_URL: ${{ steps.create-branch.outputs.db_url }}
+      run: npx prisma db push --accept-data-loss
