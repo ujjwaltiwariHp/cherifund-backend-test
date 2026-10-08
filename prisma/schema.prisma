@@ -199,7 +199,7 @@ model Feedback {
 
 model Donation {
   id String @id @default(uuid())
-  razorpayId String @unique
+  razorpayId String? @unique
   amount Float
   status String @default("created")
   campaignId String
