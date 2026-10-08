@@ -10,6 +10,7 @@ import adminFeedback from "./feedback.js"
 import adminForm from "./form.js"
 import adminMember from "./member.js"
 import adminDashboard from "./dashboard.js"
+import adminDonation from "./donation.js"
 
 const router = express.Router()
 
@@ -24,5 +25,6 @@ router.use("/feedback", adminFeedback)
 router.use("/form", adminForm)
 router.use("/member", adminMember)
 router.use("/dashboard", adminDashboard)
+router.use("/donation", adminDonation)
 
 export default router
