@@ -34,6 +34,8 @@ jobs:
         prisma: true
 
     - name: Prisma Validate
+      env:
+        DATABASE_URL: ${{ steps.create-branch.outputs.db_url }}
       run: npx prisma validate
 
     - name: Prisma Database Push Test
