@@ -45,7 +45,13 @@ app.use("/api/V1", route)
 //! for errors
 app.use((err, req, res, next)=>{
     const statusCode = err.statusCode || 500
-    const message = err.message || "Internal Server Error"
+    let message = err.message || "Internal Server Error"
+
+    // Clean up ugly Prisma validation errors
+    if (err.name && err.name.includes('Prisma')) {
+        message = "A database error occurred while processing your request."
+    }
+
     res.status(statusCode).json({
         success : false,
         message,
