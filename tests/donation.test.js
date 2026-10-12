@@ -15,9 +15,21 @@ jest.mock("../database/db.js", () => ({
       count: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
+      aggregate: jest.fn(),
     },
     campaigns: {
+      count: jest.fn(),
       findUnique: jest.fn(),
+      aggregate: jest.fn(),
+    },
+    member: {
+      count: jest.fn(),
+    },
+    comment: {
+      count: jest.fn(),
+    },
+    feedback: {
+      count: jest.fn(),
     },
   },
 }));
@@ -37,6 +49,10 @@ jest.mock("../middlewares/isAdmin.js", () => ({
 describe("Donation Admin APIs", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.donation.aggregate.mockResolvedValue({
+      _sum: { amount: 1000 },
+      _count: { id: 5 },
+    });
   });
 
   describe("GET /api/V1/admin/donation/campaign/:campaignId", () => {
@@ -96,8 +112,8 @@ describe("Donation Admin APIs", () => {
     });
   });
 
-  describe("GET /api/V1/admin/donation (Unified listing)", () => {
-    it("should return general donations when type=general", async () => {
+  describe("GET /api/V1/admin/donation (Unified listing & metrics)", () => {
+    it("should return general donations when type=general with summary metrics", async () => {
       const mockDonations = [
         {
           id: "gen-1",
@@ -113,12 +129,35 @@ describe("Donation Admin APIs", () => {
 
       prisma.donation.count.mockResolvedValue(1);
       prisma.donation.findMany.mockResolvedValue(mockDonations);
+      prisma.donation.aggregate
+        .mockResolvedValueOnce({ _sum: { amount: 250 } }) // filteredSum
+        .mockResolvedValueOnce({ _sum: { amount: 1000 }, _count: { id: 4 } }) // totalSum
+        .mockResolvedValueOnce({ _sum: { amount: 750 }, _count: { id: 3 } }) // onlineSum
+        .mockResolvedValueOnce({ _sum: { amount: 250 }, _count: { id: 1 } }) // offlineSum
+        .mockResolvedValueOnce({ _sum: { amount: 250 }, _count: { id: 1 } }) // generalSum
+        .mockResolvedValueOnce({ _sum: { amount: 750 }, _count: { id: 3 } }); // campaignSum
 
       const res = await request(app).get("/api/V1/admin/donation?type=general");
 
       expect(res.status).toBe(200);
       expect(res.body.total).toBe(1);
       expect(res.body.donations).toEqual(mockDonations);
+      expect(res.body.summary).toEqual({
+        totalAmount: 1000,
+        totalCount: 4,
+        onlineAmount: 750,
+        onlineCount: 3,
+        offlineAmount: 250,
+        offlineCount: 1,
+        generalAmount: 250,
+        generalCount: 1,
+        campaignAmount: 750,
+        campaignCount: 3,
+      });
+      expect(res.body.filteredSummary).toEqual({
+        totalAmount: 250,
+        totalCount: 1,
+      });
       expect(prisma.donation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ campaignId: null, status: { in: ["paid", "offline"] } }),
@@ -126,16 +165,40 @@ describe("Donation Admin APIs", () => {
       );
     });
 
-    it("should return campaign donations when type=campaign", async () => {
+    it("should filter by paymentMethod=offline and campaignId", async () => {
       prisma.donation.count.mockResolvedValue(0);
       prisma.donation.findMany.mockResolvedValue([]);
 
-      const res = await request(app).get("/api/V1/admin/donation?type=campaign&campaignId=camp-999");
+      const res = await request(app).get("/api/V1/admin/donation?type=campaign&campaignId=camp-999&paymentMethod=offline");
 
       expect(res.status).toBe(200);
       expect(prisma.donation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ campaignId: "camp-999" }),
+          where: expect.objectContaining({
+            campaignId: "camp-999",
+            paymentMethod: "offline",
+          }),
+        })
+      );
+    });
+
+    it("should filter by search and date range", async () => {
+      prisma.donation.count.mockResolvedValue(0);
+      prisma.donation.findMany.mockResolvedValue([]);
+
+      const res = await request(app).get("/api/V1/admin/donation?search=Alice&startDate=2026-10-01&endDate=2026-10-12");
+
+      expect(res.status).toBe(200);
+      expect(prisma.donation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              { firstName: { contains: "Alice", mode: "insensitive" } },
+            ]),
+            createdAt: expect.objectContaining({
+              gte: new Date("2026-10-01"),
+            }),
+          }),
         })
       );
     });
@@ -155,6 +218,7 @@ describe("Donation Admin APIs", () => {
           address: "City",
           amount: 300,
           paymentMethod: "offline",
+          status: "offline",
           createdAt: new Date("2026-10-12T00:00:00.000Z"),
         },
         {
@@ -168,6 +232,7 @@ describe("Donation Admin APIs", () => {
           address: "Town",
           amount: 600,
           paymentMethod: "online",
+          status: "paid",
           createdAt: new Date("2026-10-12T00:00:00.000Z"),
         },
       ];
@@ -178,9 +243,42 @@ describe("Donation Admin APIs", () => {
 
       expect(res.status).toBe(200);
       expect(res.header["content-type"]).toContain("text/csv");
-      expect(res.text).toContain("Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Date");
+      expect(res.text).toContain("Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Status,Date");
       expect(res.text).toContain("d-1,General,\"\",\"General Donation\"");
       expect(res.text).toContain("d-2,Campaign,\"camp-1\",\"Clean Water Project\"");
+    });
+  });
+
+  describe("GET /api/V1/admin/dashboard/get-data (Accurate funds aggregation)", () => {
+    it("should return accurate total funds and fund breakdowns from verified donations", async () => {
+      prisma.campaigns.count.mockResolvedValue(4);
+      prisma.member.count.mockResolvedValue(10);
+      prisma.comment.count.mockResolvedValue(2);
+      prisma.feedback.count.mockResolvedValue(1);
+
+      prisma.donation.aggregate
+        .mockResolvedValueOnce({ _sum: { amount: 19150 }, _count: { id: 18 } }) // totalDonations
+        .mockResolvedValueOnce({ _sum: { amount: 1000 }, _count: { id: 2 } })   // generalDonations
+        .mockResolvedValueOnce({ _sum: { amount: 18150 }, _count: { id: 16 } }) // campaignDonations
+        .mockResolvedValueOnce({ _sum: { amount: 18650 }, _count: { id: 17 } }) // onlineDonations
+        .mockResolvedValueOnce({ _sum: { amount: 500 }, _count: { id: 1 } });   // offlineDonations
+
+      const res = await request(app).get("/api/V1/admin/dashboard/get-data");
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        activeCampaign: 4,
+        totalMembers: 10,
+        totalFunds: 19150,
+        generalFunds: 1000,
+        campaignFunds: 18150,
+        onlineFunds: 18650,
+        offlineFunds: 500,
+        totalDonationsCount: 18,
+        generalDonationsCount: 2,
+        campaignDonationsCount: 16,
+        pendingRequest: 3,
+      });
     });
   });
 
