@@ -7,9 +7,9 @@ import { pickLanguage } from "../../util/languageHelper.js"
 import { logError } from "../../util/logHelper.js"
 
 const ALLOWED_PAGES = [
-    "Home", "About Us", "Campaign", "Donate Us", 
-    "Become Volunteer", "Events", "Team", "Sponsors", 
-    "Blog", "Contact Us"
+    "Home", "About Us", "Campaign", "Donate Us",
+    "Volunteer", "Become Volunteer", "Events", "Team", "Sponsors",
+    "Blog", "Contact Us", "Services"
 ];
 
 //! add banner
@@ -39,7 +39,7 @@ export const addBanner = async (req, res, next) =>{
             if(countWords(parsedDescription.en) > 60 || countWords(parsedDescription.hi) > 60)
                 return next(errorHandler(bannerError.Description_Length))
         }
-        
+
         const parsedPriority = parseInt(priority)
 
         if(!req.file)
@@ -66,7 +66,7 @@ export const addBanner = async (req, res, next) =>{
         //!check if requested priority already taken
         const existingPriority = allBanners.find( b => b.priority === parsedPriority)
 
-        if(existingPriority){            
+        if(existingPriority){
             //! find the nearest available priority
             const nearestEmpty = availablePriority.reduce((prev, curr) =>{
                 return Math.abs(curr - parsedPriority) < Math.abs(prev - parsedPriority) ? curr : prev
@@ -115,7 +115,7 @@ export const getAllBanner = async (req, res, next) =>{
         const limitNumber = parseInt(limit)
         const skip = (pageNumber - 1) * limitNumber
 
-        
+
 
         let whereCondition = {}
 
@@ -154,7 +154,7 @@ export const getAllBanner = async (req, res, next) =>{
 
         const formatted = banners.map(banner =>{
 
-            const isHindiMatch = banner.title?.hi?.includes(title) || 
+            const isHindiMatch = banner.title?.hi?.includes(title) ||
                             banner.subtitle?.hi?.includes(subtitle)
         const FinalLang =(title || subtitle) ?  isHindiMatch ? "hi" : "en" : lang;
         return {
@@ -202,7 +202,7 @@ export const getBannerById = async (req, res, next) =>{
             title : existingBanner.title,
             subtitle : existingBanner.subtitle,
             description: existingBanner.description,
-            priority : existingBanner.priority,            
+            priority : existingBanner.priority,
             image : existingBanner.imageUrl ? existingBanner.imageUrl.url : null
         }
 
@@ -232,7 +232,7 @@ export const updateBanner = async (req, res, next)  =>{
         }
 
        const parsedTitle = title ? (typeof title === "string" ? JSON.parse(title) : title) : existingBanner.title
-       const parsedSubtitle = subtitle ? (typeof subtitle === "string" ? JSON.parse(subtitle) : subtitle) : existingBanner.subtitle 
+       const parsedSubtitle = subtitle ? (typeof subtitle === "string" ? JSON.parse(subtitle) : subtitle) : existingBanner.subtitle
        const parsedDescription = description ? (typeof description === "string" ? JSON.parse(description) : description) : existingBanner.description
 
         const countWords = (text) => text ? text.trim().split(/\s+/).length : 0;
@@ -272,7 +272,7 @@ export const updateBanner = async (req, res, next)  =>{
              await prisma.banner.update({
                 where : {id : existingBanner.id},
                 data : {priority : parsedPriority, pageName: targetPageName}
-             })   
+             })
 
              await prisma.banner.update({
                 where : {id : targetBanner.id},
