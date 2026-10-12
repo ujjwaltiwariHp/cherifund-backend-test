@@ -212,8 +212,8 @@ model Donation {
   address String?
   message String? @db.Text
 
-  campaignId String
-  campaign Campaigns @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign Campaigns? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }

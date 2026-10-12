@@ -4,7 +4,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
@@ -37,6 +37,11 @@
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
-    "prisma": "^6.15.0"
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "babel-jest": "^30.5.2",
+    "jest": "^30.5.2",
+    "prisma": "^6.15.0",
+    "supertest": "^7.3.1"
   }
 }

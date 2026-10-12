@@ -10,24 +10,30 @@ import {createHmac} from "node:crypto"
 export const createOrder = async (req, res, next) =>{
     const {amount, campaignId, campaignTitle, firstName, lastName, email, phone, address, message, paymentMethod} = req.body
     try {
-        if(!amount)
+        if(!amount || Number(amount) <= 0)
             return next(errorHandler(paymentError.Amount_Required))
 
-        const existingCampaign = await prisma.campaigns.findUnique({
-            where : {
-                id : campaignId
-            }
-        })
-        if(!existingCampaign)
-            return next(errorHandler(paymentError.Not_Exists))
+        const validCampaignId = campaignId && typeof campaignId === "string" && campaignId.trim() !== ""
+            ? campaignId.trim()
+            : null
+
+        if (validCampaignId) {
+            const existingCampaign = await prisma.campaigns.findUnique({
+                where : {
+                    id : validCampaignId
+                }
+            })
+            if(!existingCampaign)
+                return next(errorHandler(paymentError.Not_Exists))
+        }
             
         if (paymentMethod === "offline") {
              const donation = await prisma.donation.create({
                  data: {
-                     amount: amount,
+                     amount: Number(amount),
                      status: "offline",
                      paymentMethod: "offline",
-                     campaignId: campaignId,
+                     campaignId: validCampaignId,
                      firstName, lastName, email, phone, address, message
                  }
              });
@@ -38,12 +44,13 @@ export const createOrder = async (req, res, next) =>{
         }
 
         const options = {
-            amount : amount * 100,
+            amount : Math.round(Number(amount) * 100),
             currency : "INR",
             receipt : `recept_${Date.now()}`,
             notes : {
-                campaignId: campaignId,
-                campaignTitle,
+                campaignId: validCampaignId || "",
+                campaignTitle: campaignTitle || "General Donation",
+                donationType: validCampaignId ? "campaign" : "general"
             }
         }
 
@@ -52,10 +59,10 @@ export const createOrder = async (req, res, next) =>{
         await prisma.donation.create({
              data: {
                  orderId: order.id,
-                 amount: amount,
+                 amount: Number(amount),
                  status: "created",
                  paymentMethod: "online",
-                 campaignId: campaignId,
+                 campaignId: validCampaignId,
                  firstName, lastName, email, phone, address, message
              }
         });
@@ -102,7 +109,10 @@ export const razorpayWebhook = async (req, res, next) =>{
         // We can use req.body directly because express.json() already parsed it!
         const event = req.body.event;
         const payment = req.body.payload.payment.entity;
-        const campaignId = payment.notes.campaignId;
+        const rawCampaignId = payment.notes?.campaignId;
+        const campaignId = rawCampaignId && typeof rawCampaignId === "string" && rawCampaignId.trim() !== ""
+            ? rawCampaignId.trim()
+            : null;
         const orderId = payment.order_id;
 
         if (event == "payment.captured" || event == "payment.authorized"){
