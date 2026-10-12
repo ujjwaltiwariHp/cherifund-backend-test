@@ -99,3 +99,160 @@ export const exportDonorsCSV = async (req, res, next) => {
         next(error);
     }
 };
+
+export const getAllDonations = async (req, res, next) => {
+    const { page = 1, limit = 10, search, type = "all", campaignId } = req.query;
+
+    try {
+        const pageNumber = parseInt(page) || 1;
+        const limitNumber = parseInt(limit) || 10;
+        const skip = (pageNumber - 1) * limitNumber;
+
+        let whereCondition = {
+            status: { in: ["paid", "offline"] }
+        };
+
+        if (type === "general") {
+            whereCondition.campaignId = null;
+        } else if (type === "campaign") {
+            if (campaignId) {
+                whereCondition.campaignId = campaignId;
+            } else {
+                whereCondition.campaignId = { not: null };
+            }
+        } else if (campaignId) {
+            whereCondition.campaignId = campaignId;
+        }
+
+        if (search && search.trim() !== "") {
+            whereCondition = {
+                ...whereCondition,
+                OR: [
+                    { firstName: { contains: search, mode: "insensitive" } },
+                    { lastName: { contains: search, mode: "insensitive" } },
+                    { email: { contains: search, mode: "insensitive" } },
+                    { phone: { contains: search, mode: "insensitive" } }
+                ]
+            };
+        }
+
+        const totalDonations = await prisma.donation.count({ where: whereCondition });
+
+        const donations = await prisma.donation.findMany({
+            where: whereCondition,
+            skip,
+            take: limitNumber,
+            orderBy: {
+                createdAt: "desc"
+            },
+            include: {
+                campaign: {
+                    select: {
+                        id: true,
+                        title: true
+                    }
+                }
+            }
+        });
+
+        res.status(httpStatus.OK).json({
+            total: totalDonations,
+            page: pageNumber,
+            limit: limitNumber,
+            totalPages: Math.ceil(totalDonations / limitNumber),
+            donations
+        });
+
+    } catch (error) {
+        logError("Error in get all donations", error);
+        next(error);
+    }
+};
+
+export const exportAllDonationsCSV = async (req, res, next) => {
+    const { search, type = "all", campaignId } = req.query;
+
+    try {
+        let whereCondition = {
+            status: { in: ["paid", "offline"] }
+        };
+
+        if (type === "general") {
+            whereCondition.campaignId = null;
+        } else if (type === "campaign") {
+            if (campaignId) {
+                whereCondition.campaignId = campaignId;
+            } else {
+                whereCondition.campaignId = { not: null };
+            }
+        } else if (campaignId) {
+            whereCondition.campaignId = campaignId;
+        }
+
+        if (search && search.trim() !== "") {
+            whereCondition = {
+                ...whereCondition,
+                OR: [
+                    { firstName: { contains: search, mode: "insensitive" } },
+                    { lastName: { contains: search, mode: "insensitive" } },
+                    { email: { contains: search, mode: "insensitive" } },
+                    { phone: { contains: search, mode: "insensitive" } }
+                ]
+            };
+        }
+
+        const donations = await prisma.donation.findMany({
+            where: whereCondition,
+            orderBy: {
+                createdAt: "desc"
+            },
+            include: {
+                campaign: {
+                    select: {
+                        id: true,
+                        title: true
+                    }
+                }
+            }
+        });
+
+        if (!donations || donations.length === 0) {
+            return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "No donations found to export" }));
+        }
+
+        let csv = "Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Date\n";
+
+        donations.forEach(donation => {
+            const donationType = donation.campaignId ? "Campaign" : "General";
+            const campId = donation.campaignId ? `"${donation.campaignId}"` : '""';
+            let campTitle = "General Donation";
+            if (donation.campaign?.title) {
+                if (typeof donation.campaign.title === "object") {
+                    campTitle = donation.campaign.title.en || donation.campaign.title.hi || JSON.stringify(donation.campaign.title);
+                } else {
+                    campTitle = String(donation.campaign.title);
+                }
+            }
+            campTitle = `"${campTitle.replace(/"/g, '""')}"`;
+
+            const firstName = donation.firstName ? `"${donation.firstName.replace(/"/g, '""')}"` : '""';
+            const lastName = donation.lastName ? `"${donation.lastName.replace(/"/g, '""')}"` : '""';
+            const email = donation.email ? `"${donation.email.replace(/"/g, '""')}"` : '""';
+            const phone = donation.phone ? `"${donation.phone.replace(/"/g, '""')}"` : '""';
+            const address = donation.address ? `"${donation.address.replace(/"/g, '""')}"` : '""';
+            const amount = donation.amount || 0;
+            const method = donation.paymentMethod || "online";
+            const date = donation.createdAt ? donation.createdAt.toISOString().split('T')[0] : "";
+
+            csv += `${donation.id},${donationType},${campId},${campTitle},${firstName},${lastName},${email},${phone},${address},${amount},${method},${date}\n`;
+        });
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="donations_export_${Date.now()}.csv"`);
+        res.status(httpStatus.OK).send(csv);
+
+    } catch (error) {
+        logError("Error exporting all donations csv", error);
+        next(error);
+    }
+};

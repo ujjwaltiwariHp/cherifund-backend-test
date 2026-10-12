@@ -212,8 +212,8 @@ model Donation {
   address String?
   message String? @db.Text
 
-  campaignId String
-  campaign Campaigns @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign Campaigns? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }
@@ -240,4 +240,19 @@ model Event {
   updatedAt DateTime @updatedAt
 
   comments comment[]
+}
+
+model Sponsor {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  name             Json
+  category         Json
+  location         Json?
+  shortDescription Json
+  description      Json
+  website          String?
+  imageUrl         Json
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
