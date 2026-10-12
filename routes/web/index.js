@@ -10,6 +10,7 @@ import feedbackRoute from "./feedback.js"
 import emailRoute from "./email.js"
 import eventRoute from "./event.js"
 import paymentRoute from "./payment.js"
+import sponsorRoute from "./sponsor.js"
 
 
 const router = express.Router()
@@ -25,5 +26,6 @@ router.use("/feedback", feedbackRoute)
 router.use("/email", emailRoute)
 router.use("/event", eventRoute)
 router.use("/payment", paymentRoute)
+router.use("/sponsor", sponsorRoute)
 
 export default router
