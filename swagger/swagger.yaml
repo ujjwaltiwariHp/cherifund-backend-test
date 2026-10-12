@@ -5557,3 +5557,184 @@ paths:
                           format: uri
         '500':
           description: Internal server error                        
+
+  /api/V1/admin/sponsor/add-sponsor:
+    post:
+      summary: Add a new sponsor
+      tags:
+        - Admin Sponsor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - name
+                - category
+                - shortDescription
+                - description
+                - logo
+              properties:
+                name:
+                  type: string
+                  description: JSON string of bilingual name {"en":"...","hi":"..."}
+                category:
+                  type: string
+                  description: JSON string of bilingual category {"en":"...","hi":"..."}
+                location:
+                  type: string
+                  description: JSON string of bilingual location {"en":"...","hi":"..."}
+                shortDescription:
+                  type: string
+                  description: JSON string of bilingual short description {"en":"...","hi":"..."}
+                description:
+                  type: string
+                  description: JSON string of bilingual description {"en":"...","hi":"..."}
+                website:
+                  type: string
+                logo:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Sponsor created successfully
+
+  /api/V1/admin/sponsor/getAllSponsors:
+    get:
+      summary: Get all sponsors (Admin)
+      tags:
+        - Admin Sponsor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of sponsors
+
+  /api/V1/admin/sponsor/getSponsorById/{id}:
+    get:
+      summary: Get sponsor by ID
+      tags:
+        - Admin Sponsor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Single sponsor details
+
+  /api/V1/admin/sponsor/update-sponsor/{id}:
+    put:
+      summary: Update sponsor by ID
+      tags:
+        - Admin Sponsor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                location:
+                  type: string
+                shortDescription:
+                  type: string
+                description:
+                  type: string
+                website:
+                  type: string
+                logo:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Sponsor updated successfully
+
+  /api/V1/admin/sponsor/delete-sponsor/{id}:
+    delete:
+      summary: Delete sponsor by ID
+      tags:
+        - Admin Sponsor
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sponsor deleted successfully
+
+  /api/V1/web/sponsor/getAllSponsors:
+    get:
+      summary: Get all public sponsors
+      tags:
+        - Web Sponsor
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of public sponsors
+
+  /api/V1/web/sponsor/getSponsorBySlug/{slug}:
+    get:
+      summary: Get public sponsor by slug
+      tags:
+        - Web Sponsor
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sponsor details by slug
