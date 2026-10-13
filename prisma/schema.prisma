@@ -256,3 +256,12 @@ model Sponsor {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+//! Gallery Image
+model GalleryImage {
+  id        String   @id @default(uuid())
+  imageUrl  Json     // { url: String, public_id: String }
+  altText   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
