@@ -100,66 +100,163 @@ export const exportDonorsCSV = async (req, res, next) => {
     }
 };
 
+export const buildDonationWhereClause = (query = {}) => {
+    const { search, type = "all", campaignId, paymentMethod = "all", status, startDate, endDate } = query;
+    let whereCondition = {};
+
+    // Status filter: default to verified donations (paid or offline) unless specified
+    if (status && status !== "all") {
+        whereCondition.status = status;
+    } else if (!status) {
+        whereCondition.status = { in: ["paid", "offline"] };
+    }
+
+    // Type filter: general vs campaign
+    if (type === "general") {
+        whereCondition.campaignId = null;
+    } else if (type === "campaign") {
+        if (campaignId) {
+            whereCondition.campaignId = campaignId;
+        } else {
+            whereCondition.campaignId = { not: null };
+        }
+    } else if (campaignId) {
+        whereCondition.campaignId = campaignId;
+    }
+
+    // Payment method filter: online vs offline
+    if (paymentMethod && paymentMethod !== "all") {
+        whereCondition.paymentMethod = paymentMethod.toLowerCase();
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        whereCondition.createdAt = {};
+        if (startDate) {
+            whereCondition.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+            const end = new Date(endDate);
+            if (endDate.length <= 10) {
+                end.setHours(23, 59, 59, 999);
+            }
+            whereCondition.createdAt.lte = end;
+        }
+    }
+
+    // Search filter across donor fields
+    if (search && search.trim() !== "") {
+        const s = search.trim();
+        whereCondition.OR = [
+            { firstName: { contains: s, mode: "insensitive" } },
+            { lastName: { contains: s, mode: "insensitive" } },
+            { email: { contains: s, mode: "insensitive" } },
+            { phone: { contains: s, mode: "insensitive" } },
+            { address: { contains: s, mode: "insensitive" } }
+        ];
+    }
+
+    return whereCondition;
+};
+
 export const getAllDonations = async (req, res, next) => {
-    const { page = 1, limit = 10, search, type = "all", campaignId } = req.query;
+    const { page = 1, limit = 10 } = req.query;
 
     try {
         const pageNumber = parseInt(page) || 1;
         const limitNumber = parseInt(limit) || 10;
         const skip = (pageNumber - 1) * limitNumber;
 
-        let whereCondition = {
-            status: { in: ["paid", "offline"] }
-        };
+        const whereCondition = buildDonationWhereClause(req.query);
 
-        if (type === "general") {
-            whereCondition.campaignId = null;
-        } else if (type === "campaign") {
-            if (campaignId) {
-                whereCondition.campaignId = campaignId;
-            } else {
-                whereCondition.campaignId = { not: null };
-            }
-        } else if (campaignId) {
-            whereCondition.campaignId = campaignId;
-        }
+        const baseStatus = whereCondition.status || { in: ["paid", "offline"] };
+        const scopeCondition = req.query.campaignId
+            ? { campaignId: req.query.campaignId, status: baseStatus }
+            : { status: baseStatus };
 
-        if (search && search.trim() !== "") {
-            whereCondition = {
-                ...whereCondition,
-                OR: [
-                    { firstName: { contains: search, mode: "insensitive" } },
-                    { lastName: { contains: search, mode: "insensitive" } },
-                    { email: { contains: search, mode: "insensitive" } },
-                    { phone: { contains: search, mode: "insensitive" } }
-                ]
-            };
-        }
-
-        const totalDonations = await prisma.donation.count({ where: whereCondition });
-
-        const donations = await prisma.donation.findMany({
-            where: whereCondition,
-            skip,
-            take: limitNumber,
-            orderBy: {
-                createdAt: "desc"
-            },
-            include: {
-                campaign: {
-                    select: {
-                        id: true,
-                        title: true
+        const [
+            totalFilteredDonations,
+            donations,
+            filteredSum,
+            totalSum,
+            onlineSum,
+            offlineSum,
+            generalSum,
+            campaignSum
+        ] = await Promise.all([
+            prisma.donation.count({ where: whereCondition }),
+            prisma.donation.findMany({
+                where: whereCondition,
+                skip,
+                take: limitNumber,
+                orderBy: {
+                    createdAt: "desc"
+                },
+                include: {
+                    campaign: {
+                        select: {
+                            id: true,
+                            title: true
+                        }
                     }
                 }
-            }
-        });
+            }),
+            prisma.donation.aggregate({
+                where: whereCondition,
+                _sum: { amount: true }
+            }),
+            prisma.donation.aggregate({
+                where: scopeCondition,
+                _count: { id: true },
+                _sum: { amount: true }
+            }),
+            prisma.donation.aggregate({
+                where: { ...scopeCondition, paymentMethod: "online" },
+                _count: { id: true },
+                _sum: { amount: true }
+            }),
+            prisma.donation.aggregate({
+                where: { ...scopeCondition, paymentMethod: "offline" },
+                _count: { id: true },
+                _sum: { amount: true }
+            }),
+            prisma.donation.aggregate({
+                where: { ...scopeCondition, campaignId: null },
+                _count: { id: true },
+                _sum: { amount: true }
+            }),
+            prisma.donation.aggregate({
+                where: { ...scopeCondition, campaignId: { not: null } },
+                _count: { id: true },
+                _sum: { amount: true }
+            })
+        ]);
+
+        const summary = {
+            totalAmount: totalSum._sum?.amount || 0,
+            totalCount: totalSum._count?.id || 0,
+            onlineAmount: onlineSum._sum?.amount || 0,
+            onlineCount: onlineSum._count?.id || 0,
+            offlineAmount: offlineSum._sum?.amount || 0,
+            offlineCount: offlineSum._count?.id || 0,
+            generalAmount: generalSum._sum?.amount || 0,
+            generalCount: generalSum._count?.id || 0,
+            campaignAmount: campaignSum._sum?.amount || 0,
+            campaignCount: campaignSum._count?.id || 0,
+        };
+
+        const filteredSummary = {
+            totalAmount: filteredSum._sum?.amount || 0,
+            totalCount: totalFilteredDonations,
+        };
 
         res.status(httpStatus.OK).json({
-            total: totalDonations,
+            total: totalFilteredDonations,
             page: pageNumber,
             limit: limitNumber,
-            totalPages: Math.ceil(totalDonations / limitNumber),
+            totalPages: Math.ceil(totalFilteredDonations / limitNumber),
+            summary,
+            filteredSummary,
             donations
         });
 
@@ -170,36 +267,8 @@ export const getAllDonations = async (req, res, next) => {
 };
 
 export const exportAllDonationsCSV = async (req, res, next) => {
-    const { search, type = "all", campaignId } = req.query;
-
     try {
-        let whereCondition = {
-            status: { in: ["paid", "offline"] }
-        };
-
-        if (type === "general") {
-            whereCondition.campaignId = null;
-        } else if (type === "campaign") {
-            if (campaignId) {
-                whereCondition.campaignId = campaignId;
-            } else {
-                whereCondition.campaignId = { not: null };
-            }
-        } else if (campaignId) {
-            whereCondition.campaignId = campaignId;
-        }
-
-        if (search && search.trim() !== "") {
-            whereCondition = {
-                ...whereCondition,
-                OR: [
-                    { firstName: { contains: search, mode: "insensitive" } },
-                    { lastName: { contains: search, mode: "insensitive" } },
-                    { email: { contains: search, mode: "insensitive" } },
-                    { phone: { contains: search, mode: "insensitive" } }
-                ]
-            };
-        }
+        const whereCondition = buildDonationWhereClause(req.query);
 
         const donations = await prisma.donation.findMany({
             where: whereCondition,
@@ -220,7 +289,7 @@ export const exportAllDonationsCSV = async (req, res, next) => {
             return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "No donations found to export" }));
         }
 
-        let csv = "Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Date\n";
+        let csv = "Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Status,Date\n";
 
         donations.forEach(donation => {
             const donationType = donation.campaignId ? "Campaign" : "General";
@@ -242,9 +311,10 @@ export const exportAllDonationsCSV = async (req, res, next) => {
             const address = donation.address ? `"${donation.address.replace(/"/g, '""')}"` : '""';
             const amount = donation.amount || 0;
             const method = donation.paymentMethod || "online";
+            const status = donation.status || "paid";
             const date = donation.createdAt ? donation.createdAt.toISOString().split('T')[0] : "";
 
-            csv += `${donation.id},${donationType},${campId},${campTitle},${firstName},${lastName},${email},${phone},${address},${amount},${method},${date}\n`;
+            csv += `${donation.id},${donationType},${campId},${campTitle},${firstName},${lastName},${email},${phone},${address},${amount},${method},${status},${date}\n`;
         });
 
         res.setHeader('Content-Type', 'text/csv');

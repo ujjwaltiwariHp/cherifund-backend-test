@@ -25,31 +25,45 @@ export const dashboard = async (req, res, next) => {
             offlineDonations
         ] = await Promise.all([
             prisma.donation.aggregate({
-                where: { status: { in: ["paid", "offline"] } },
+                where: {
+                    status: { in: ["paid", "offline"] }
+                },
                 _sum: { amount: true },
                 _count: { id: true }
             }),
             prisma.donation.aggregate({
-                where: { campaignId: null, status: { in: ["paid", "offline"] } },
+                where: {
+                    campaignId: null,
+                    status: { in: ["paid", "offline"] }
+                },
                 _sum: { amount: true },
                 _count: { id: true }
             }),
             prisma.donation.aggregate({
-                where: { campaignId: { not: null }, status: { in: ["paid", "offline"] } },
+                where: {
+                    campaignId: { not: null },
+                    status: { in: ["paid", "offline"] }
+                },
                 _sum: { amount: true },
                 _count: { id: true }
             }),
             prisma.donation.aggregate({
-                where: { paymentMethod: "online", status: { in: ["paid", "offline"] } },
+                where: {
+                    paymentMethod: "online",
+                    status: { in: ["paid", "offline"] }
+                },
                 _sum: { amount: true },
                 _count: { id: true }
             }),
             prisma.donation.aggregate({
-                where: { paymentMethod: "offline", status: { in: ["paid", "offline"] } },
+                where: {
+                    paymentMethod: "offline",
+                    status: { in: ["paid", "offline"] }
+                },
                 _sum: { amount: true },
                 _count: { id: true }
             })
-        ])
+        ]);
 
         //! pending request (comment - feedback)
         const pendingComment = await prisma.comment.count({
