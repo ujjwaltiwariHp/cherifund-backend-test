@@ -9,17 +9,21 @@ jest.mock("../swagger/swagger.js", () => ({
 }));
 
 // Mocking Prisma
-jest.mock("../database/db.js", () => ({
-  prisma: {
+jest.mock("../database/db.js", () => {
+  const mockClient = {
+    $transaction: jest.fn(async (callback) => callback(mockClient)),
     donation: {
       count: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
       aggregate: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     campaigns: {
       count: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
       aggregate: jest.fn(),
     },
     member: {
@@ -31,8 +35,9 @@ jest.mock("../database/db.js", () => ({
     feedback: {
       count: jest.fn(),
     },
-  },
-}));
+  };
+  return { prisma: mockClient };
+});
 
 // Mocking Authentication Middlewares
 jest.mock("../middlewares/auth.js", () => ({
@@ -311,6 +316,7 @@ describe("Donation Admin APIs", () => {
 
     it("should validate and create offline campaign donation when campaignId is provided", async () => {
       prisma.campaigns.findUnique.mockResolvedValue({ id: "camp-123" });
+      prisma.campaigns.update.mockResolvedValue({ id: "camp-123", raisedAmount: 750, goalAmount: 1000 });
       prisma.donation.create.mockResolvedValue({ id: "don-offline-camp" });
 
       const res = await request(app)
@@ -336,6 +342,16 @@ describe("Donation Admin APIs", () => {
           }),
         })
       );
+      expect(prisma.campaigns.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "camp-123" },
+          data: {
+            raisedAmount: {
+              increment: 750,
+            },
+          },
+        })
+      );
     });
 
     it("should return 404 when provided campaignId does not exist", async () => {
@@ -350,6 +366,72 @@ describe("Donation Admin APIs", () => {
         });
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("Razorpay Webhook (Idempotent Campaign Raised Amount)", () => {
+    it("should increment campaign raisedAmount on first payment event", async () => {
+      prisma.donation.findUnique.mockResolvedValue({ id: "don-1", status: "created", orderId: "order_123" });
+      prisma.donation.update.mockResolvedValue({ id: "don-1", status: "paid" });
+      prisma.campaigns.update.mockResolvedValue({ id: "camp-123", raisedAmount: 500, goalAmount: 1000 });
+
+      const res = await request(app)
+        .post("/api/V1/payment/razorpay-webhook")
+        .set("x-razorpay-signature", "dummy-sig")
+        .send({
+          event: "payment.captured",
+          payload: {
+            payment: {
+              entity: {
+                id: "pay_123",
+                order_id: "order_123",
+                amount: 50000,
+                notes: {
+                  campaignId: "camp-123",
+                },
+              },
+            },
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(prisma.campaigns.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "camp-123" },
+          data: {
+            raisedAmount: {
+              increment: 500,
+            },
+          },
+        })
+      );
+    });
+
+    it("should NOT increment campaign raisedAmount if donation was already marked paid", async () => {
+      prisma.donation.findUnique.mockResolvedValue({ id: "don-1", status: "paid", orderId: "order_123" });
+      prisma.donation.update.mockResolvedValue({ id: "don-1", status: "paid" });
+
+      const res = await request(app)
+        .post("/api/V1/payment/razorpay-webhook")
+        .set("x-razorpay-signature", "dummy-sig")
+        .send({
+          event: "payment.captured",
+          payload: {
+            payment: {
+              entity: {
+                id: "pay_123",
+                order_id: "order_123",
+                amount: 50000,
+                notes: {
+                  campaignId: "camp-123",
+                },
+              },
+            },
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(prisma.campaigns.update).not.toHaveBeenCalled();
     });
   });
 });
