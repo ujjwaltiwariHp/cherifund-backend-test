@@ -28,15 +28,37 @@ export const createOrder = async (req, res, next) =>{
         }
             
         if (paymentMethod === "offline") {
-             const donation = await prisma.donation.create({
-                 data: {
-                     amount: Number(amount),
-                     status: "offline",
-                     paymentMethod: "offline",
-                     campaignId: validCampaignId,
-                     firstName, lastName, email, phone, address, message
+             const donation = await prisma.$transaction(async (tx) => {
+                 const newDonation = await tx.donation.create({
+                     data: {
+                         amount: Number(amount),
+                         status: "offline",
+                         paymentMethod: "offline",
+                         campaignId: validCampaignId,
+                         firstName, lastName, email, phone, address, message
+                     }
+                 });
+
+                 if (validCampaignId) {
+                     const updated = await tx.campaigns.update({
+                         where: { id: validCampaignId },
+                         data: {
+                             raisedAmount: {
+                                 increment: Number(amount)
+                             }
+                         }
+                     });
+                     if (updated.raisedAmount >= updated.goalAmount) {
+                         await tx.campaigns.update({
+                             where: { id: validCampaignId },
+                             data: { status: "Completed" }
+                         });
+                     }
                  }
+
+                 return newDonation;
              });
+
              return res.status(httpStatus.CREATED).json({
                  msg: "Offline donation logged successfully",
                  donationId: donation.id
@@ -122,6 +144,8 @@ export const razorpayWebhook = async (req, res, next) =>{
                     where: { orderId: orderId }
                 });
 
+                const isAlreadyPaid = existingDonation && existingDonation.status === "paid";
+
                 if (existingDonation) {
                     await tx.donation.update({
                         where: { orderId: orderId },
@@ -142,8 +166,8 @@ export const razorpayWebhook = async (req, res, next) =>{
                     });
                 }
                 
-                // Update campaign raisedAmount
-                if (campaignId) {
+                // Update campaign raisedAmount only if not already paid
+                if (campaignId && !isAlreadyPaid) {
                     const updated = await tx.campaigns.update({
                         where : {
                             id : campaignId,
