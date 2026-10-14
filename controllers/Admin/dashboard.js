@@ -13,6 +13,15 @@ export const dashboard = async (req, res, next) => {
             }
         })
 
+        //! live events (currently ongoing: startTime <= now && endTime >= now)
+        const now = new Date()
+        const liveEvents = await prisma.event.count({
+            where: {
+                startTime: { lte: now },
+                endTime: { gte: now }
+            }
+        })
+
         //! total members
         const totalMembers = await prisma.member.count()
 
@@ -78,6 +87,7 @@ export const dashboard = async (req, res, next) => {
         
         res.status(httpStatus.OK).json({
             activeCampaign,
+            liveEvents,
             totalMembers,
             totalFunds: totalDonations._sum?.amount || 0,
             generalFunds: generalDonations._sum?.amount || 0,
