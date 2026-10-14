@@ -289,9 +289,10 @@ export const exportAllDonationsCSV = async (req, res, next) => {
             return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "No donations found to export" }));
         }
 
-        let csv = "Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Status,Date\n";
+        let csv = "Receipt Number,Donation ID,Type,Campaign ID,Campaign Title,First Name,Last Name,Email,Phone,Address,Amount,Method,Status,Date\n";
 
         donations.forEach(donation => {
+            const receiptNo = donation.receiptNumber ? `"${donation.receiptNumber}"` : '""';
             const donationType = donation.campaignId ? "Campaign" : "General";
             const campId = donation.campaignId ? `"${donation.campaignId}"` : '""';
             let campTitle = "General Donation";
@@ -314,7 +315,7 @@ export const exportAllDonationsCSV = async (req, res, next) => {
             const status = donation.status || "paid";
             const date = donation.createdAt ? donation.createdAt.toISOString().split('T')[0] : "";
 
-            csv += `${donation.id},${donationType},${campId},${campTitle},${firstName},${lastName},${email},${phone},${address},${amount},${method},${status},${date}\n`;
+            csv += `${receiptNo},${donation.id},${donationType},${campId},${campTitle},${firstName},${lastName},${email},${phone},${address},${amount},${method},${status},${date}\n`;
         });
 
         res.setHeader('Content-Type', 'text/csv');
