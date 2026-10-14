@@ -204,6 +204,7 @@ model Donation {
   amount Float
   status String @default("created")
   paymentMethod String @default("online")
+  receiptNumber String? @unique
   
   firstName String?
   lastName String?
