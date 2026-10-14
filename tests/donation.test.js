@@ -26,6 +26,9 @@ jest.mock("../database/db.js", () => {
       update: jest.fn(),
       aggregate: jest.fn(),
     },
+    event: {
+      count: jest.fn(),
+    },
     member: {
       count: jest.fn(),
     },
@@ -257,6 +260,7 @@ describe("Donation Admin APIs", () => {
   describe("GET /api/V1/admin/dashboard/get-data (Accurate funds aggregation)", () => {
     it("should return accurate total funds and fund breakdowns from verified donations", async () => {
       prisma.campaigns.count.mockResolvedValue(4);
+      prisma.event.count.mockResolvedValue(2);
       prisma.member.count.mockResolvedValue(10);
       prisma.comment.count.mockResolvedValue(2);
       prisma.feedback.count.mockResolvedValue(1);
@@ -273,6 +277,7 @@ describe("Donation Admin APIs", () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
         activeCampaign: 4,
+        liveEvents: 2,
         totalMembers: 10,
         totalFunds: 19150,
         generalFunds: 1000,
