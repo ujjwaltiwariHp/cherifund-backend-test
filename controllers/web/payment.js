@@ -29,44 +29,29 @@ export const createOrder = async (req, res, next) =>{
         }
             
         if (paymentMethod === "offline") {
-             const donation = await prisma.$transaction(async (tx) => {
-                 const receiptNumber = await generateReceiptNumber(tx);
-                 const newDonation = await tx.donation.create({
-                     data: {
-                         amount: Number(amount),
-                         status: "offline",
-                         paymentMethod: "offline",
-                         receiptNumber,
-                         campaignId: validCampaignId,
-                         firstName, lastName, email, phone, address, message
-                     }
-                 });
+            const donation = await prisma.donation.create({
+                data: {
+                    amount: Number(amount),
+                    status: "pending",
+                    paymentMethod: "offline",
+                    receiptNumber: null,
+                    campaignId: validCampaignId,
+                    firstName,
+                    lastName,
+                    email,
+                    phone,
+                    address,
+                    message
+                }
+            });
 
-                 if (validCampaignId) {
-                     const updated = await tx.campaigns.update({
-                         where: { id: validCampaignId },
-                         data: {
-                             raisedAmount: {
-                                 increment: Number(amount)
-                             }
-                         }
-                     });
-                     if (updated.raisedAmount >= updated.goalAmount) {
-                         await tx.campaigns.update({
-                             where: { id: validCampaignId },
-                             data: { status: "Completed" }
-                         });
-                     }
-                 }
-
-                 return newDonation;
-             });
-
-             return res.status(httpStatus.CREATED).json({
-                 msg: "Offline donation logged successfully",
-                 donationId: donation.id,
-                 receiptNumber: donation.receiptNumber
-             });
+            return res.status(httpStatus.CREATED).json({
+                msg: "Offline donation request submitted successfully",
+                donationId: donation.id,
+                status: donation.status,
+                paymentMethod: donation.paymentMethod,
+                amount: donation.amount
+            });
         }
 
         const options = {
@@ -406,6 +391,10 @@ export const getReceiptDetails = async (req, res, next) => {
 
         if (!donation) {
             return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "Donation receipt not found" }));
+        }
+
+        if (donation.status === "pending" || !donation.receiptNumber) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Donation is still pending verification. Official receipt is not generated yet." }));
         }
 
         let campaignTitle = "General Donation";

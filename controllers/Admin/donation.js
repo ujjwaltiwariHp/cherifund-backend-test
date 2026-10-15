@@ -2,6 +2,7 @@ import { httpStatus } from "../../config/httpStatus.js"
 import { prisma } from "../../database/db.js"
 import { logError } from "../../util/logHelper.js"
 import { errorHandler } from "../../util/errorHandler.js"
+import { generateReceiptNumber } from "../../util/receiptHelper.js"
 
 export const getDonorsForCampaign = async (req, res, next) => {
     const { campaignId } = req.params;
@@ -104,10 +105,18 @@ export const buildDonationWhereClause = (query = {}) => {
     const { search, type = "all", campaignId, paymentMethod = "all", status, startDate, endDate } = query;
     let whereCondition = {};
 
-    // Status filter: default to verified donations (paid or offline) unless specified
+    // Status filter:
     if (status && status !== "all") {
-        whereCondition.status = status;
-    } else if (!status) {
+        if (status === "paid") {
+            whereCondition.status = { in: ["paid", "offline"] };
+        } else {
+            whereCondition.status = status;
+        }
+    } else if (status === "all") {
+        // Explicitly include all statuses (paid, pending, etc.)
+    } else if (paymentMethod === "offline") {
+        // When viewing offline tab without explicit status, show all offline donations
+    } else {
         whereCondition.status = { in: ["paid", "offline"] };
     }
 
@@ -324,6 +333,173 @@ export const exportAllDonationsCSV = async (req, res, next) => {
 
     } catch (error) {
         logError("Error exporting all donations csv", error);
+        next(error);
+    }
+};
+
+export const verifyOfflineDonation = async (req, res, next) => {
+    const { donationId } = req.params;
+    const { amount, message } = req.body;
+
+    try {
+        if (!donationId) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Donation ID is required" }));
+        }
+
+        const existingDonation = await prisma.donation.findUnique({
+            where: { id: donationId },
+            include: { campaign: true }
+        });
+
+        if (!existingDonation) {
+            return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "Donation not found" }));
+        }
+
+        if (existingDonation.paymentMethod !== "offline") {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Only offline donations can be verified here" }));
+        }
+
+        if (existingDonation.status === "paid" || existingDonation.status === "offline") {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Donation is already verified and confirmed" }));
+        }
+
+        const confirmedAmount = amount !== undefined && amount !== null && amount !== ""
+            ? parseFloat(amount)
+            : existingDonation.amount;
+
+        if (isNaN(confirmedAmount) || confirmedAmount <= 0) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Invalid donation amount" }));
+        }
+
+        const verifiedResult = await prisma.$transaction(async (tx) => {
+            const receiptNumber = existingDonation.receiptNumber || (await generateReceiptNumber(tx));
+
+            const updatedDonation = await tx.donation.update({
+                where: { id: donationId },
+                data: {
+                    status: "paid",
+                    amount: confirmedAmount,
+                    receiptNumber,
+                    message: message !== undefined ? message : existingDonation.message
+                },
+                include: {
+                    campaign: {
+                        select: {
+                            id: true,
+                            title: true
+                        }
+                    }
+                }
+            });
+
+            if (existingDonation.campaignId) {
+                const updatedCampaign = await tx.campaigns.update({
+                    where: { id: existingDonation.campaignId },
+                    data: {
+                        raisedAmount: {
+                            increment: confirmedAmount
+                        }
+                    }
+                });
+
+                if (updatedCampaign.raisedAmount >= updatedCampaign.goalAmount) {
+                    await tx.campaigns.update({
+                        where: { id: existingDonation.campaignId },
+                        data: { status: "Completed" }
+                    });
+                }
+            }
+
+            return updatedDonation;
+        });
+
+        res.status(httpStatus.OK).json({
+            msg: "Offline donation verified successfully",
+            donation: verifiedResult,
+            receiptNumber: verifiedResult.receiptNumber
+        });
+
+    } catch (error) {
+        logError("Error in verifyOfflineDonation", error);
+        next(error);
+    }
+};
+
+export const createDirectOfflineDonation = async (req, res, next) => {
+    const { amount, firstName, lastName, email, phone, address, message, campaignId } = req.body;
+
+    try {
+        const parsedAmount = parseFloat(amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Valid donation amount is required" }));
+        }
+
+        let validCampaignId = null;
+        if (campaignId && String(campaignId).trim() !== "") {
+            const campaign = await prisma.campaigns.findUnique({
+                where: { id: String(campaignId).trim() }
+            });
+            if (!campaign) {
+                return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "Campaign not found" }));
+            }
+            validCampaignId = campaign.id;
+        }
+
+        const donation = await prisma.$transaction(async (tx) => {
+            const receiptNumber = await generateReceiptNumber(tx);
+            const newDonation = await tx.donation.create({
+                data: {
+                    amount: parsedAmount,
+                    status: "paid",
+                    paymentMethod: "offline",
+                    receiptNumber,
+                    campaignId: validCampaignId,
+                    firstName,
+                    lastName,
+                    email,
+                    phone,
+                    address,
+                    message
+                },
+                include: {
+                    campaign: {
+                        select: {
+                            id: true,
+                            title: true
+                        }
+                    }
+                }
+            });
+
+            if (validCampaignId) {
+                const updatedCampaign = await tx.campaigns.update({
+                    where: { id: validCampaignId },
+                    data: {
+                        raisedAmount: {
+                            increment: parsedAmount
+                        }
+                    }
+                });
+
+                if (updatedCampaign.raisedAmount >= updatedCampaign.goalAmount) {
+                    await tx.campaigns.update({
+                        where: { id: validCampaignId },
+                        data: { status: "Completed" }
+                    });
+                }
+            }
+
+            return newDonation;
+        });
+
+        res.status(httpStatus.CREATED).json({
+            msg: "Offline donation recorded successfully",
+            donation,
+            receiptNumber: donation.receiptNumber
+        });
+
+    } catch (error) {
+        logError("Error in createDirectOfflineDonation", error);
         next(error);
     }
 };
