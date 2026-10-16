@@ -359,7 +359,7 @@ export const verifyOfflineDonation = async (req, res, next) => {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Only offline donations can be verified here" }));
         }
 
-        if (existingDonation.status === "paid" || existingDonation.status === "offline") {
+        if (existingDonation.status === "paid" || (existingDonation.status === "offline" && existingDonation.receiptNumber)) {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Donation is already verified and confirmed" }));
         }
 
@@ -371,6 +371,8 @@ export const verifyOfflineDonation = async (req, res, next) => {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Invalid donation amount" }));
         }
 
+        const verificationNotes = req.body.notes !== undefined ? req.body.notes : req.body.message;
+
         const verifiedResult = await prisma.$transaction(async (tx) => {
             const receiptNumber = existingDonation.receiptNumber || (await generateReceiptNumber(tx));
 
@@ -380,7 +382,7 @@ export const verifyOfflineDonation = async (req, res, next) => {
                     status: "paid",
                     amount: confirmedAmount,
                     receiptNumber,
-                    message: message !== undefined ? message : existingDonation.message
+                    message: verificationNotes !== undefined ? verificationNotes : existingDonation.message
                 },
                 include: {
                     campaign: {
@@ -393,20 +395,24 @@ export const verifyOfflineDonation = async (req, res, next) => {
             });
 
             if (existingDonation.campaignId) {
-                const updatedCampaign = await tx.campaigns.update({
-                    where: { id: existingDonation.campaignId },
-                    data: {
-                        raisedAmount: {
-                            increment: confirmedAmount
-                        }
-                    }
-                });
-
-                if (updatedCampaign.raisedAmount >= updatedCampaign.goalAmount) {
-                    await tx.campaigns.update({
+                try {
+                    const updatedCampaign = await tx.campaigns.update({
                         where: { id: existingDonation.campaignId },
-                        data: { status: "Completed" }
+                        data: {
+                            raisedAmount: {
+                                increment: confirmedAmount
+                            }
+                        }
                     });
+
+                    if (updatedCampaign.raisedAmount >= updatedCampaign.goalAmount) {
+                        await tx.campaigns.update({
+                            where: { id: existingDonation.campaignId },
+                            data: { status: "Completed" }
+                        });
+                    }
+                } catch (campErr) {
+                    console.warn(`Could not update campaign ${existingDonation.campaignId}:`, campErr.message);
                 }
             }
 
