@@ -18,6 +18,7 @@ jest.mock("../database/db.js", () => {
       create: jest.fn(),
       aggregate: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     campaigns: {
@@ -292,9 +293,9 @@ describe("Donation Admin APIs", () => {
     });
   });
 
-  describe("Web Payment createOrder (Dual-Mode)", () => {
-    it("should create offline general donation when campaignId is omitted", async () => {
-      prisma.donation.create.mockResolvedValue({ id: "don-offline-gen" });
+  describe("Web Payment createOrder (Offline Requests as Pending)", () => {
+    it("should create offline general donation pledge with pending status when campaignId is omitted", async () => {
+      prisma.donation.create.mockResolvedValue({ id: "don-offline-gen", status: "pending", amount: 500, paymentMethod: "offline" });
 
       const res = await request(app)
         .post("/api/V1/web/payment/create-order")
@@ -307,22 +308,23 @@ describe("Donation Admin APIs", () => {
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.msg).toBe("Offline donation logged successfully");
+      expect(res.body.msg).toBe("Offline donation request submitted successfully");
       expect(prisma.donation.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             amount: 500,
+            status: "pending",
             campaignId: null,
             paymentMethod: "offline",
+            receiptNumber: null,
           }),
         })
       );
     });
 
-    it("should validate and create offline campaign donation when campaignId is provided", async () => {
-      prisma.campaigns.findUnique.mockResolvedValue({ id: "camp-123" });
-      prisma.campaigns.update.mockResolvedValue({ id: "camp-123", raisedAmount: 750, goalAmount: 1000 });
-      prisma.donation.create.mockResolvedValue({ id: "don-offline-camp" });
+    it("should validate campaign and create offline campaign pledge without immediately incrementing raisedAmount", async () => {
+      prisma.campaigns.findUnique.mockResolvedValue({ id: "camp-123", raisedAmount: 0, goalAmount: 1000 });
+      prisma.donation.create.mockResolvedValue({ id: "don-offline-camp", status: "pending", amount: 750, paymentMethod: "offline" });
 
       const res = await request(app)
         .post("/api/V1/web/payment/create-order")
@@ -342,21 +344,15 @@ describe("Donation Admin APIs", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             amount: 750,
+            status: "pending",
             campaignId: "camp-123",
             paymentMethod: "offline",
+            receiptNumber: null,
           }),
         })
       );
-      expect(prisma.campaigns.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "camp-123" },
-          data: {
-            raisedAmount: {
-              increment: 750,
-            },
-          },
-        })
-      );
+      // Campaign raisedAmount must NOT be incremented upon initial pledge
+      expect(prisma.campaigns.update).not.toHaveBeenCalled();
     });
 
     it("should return 404 when provided campaignId does not exist", async () => {
@@ -437,6 +433,163 @@ describe("Donation Admin APIs", () => {
 
       expect(res.status).toBe(200);
       expect(prisma.campaigns.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Admin Offline Verification & Direct Recording", () => {
+    it("should successfully verify a pending offline donation and increment campaign raisedAmount", async () => {
+      prisma.donation.findUnique.mockResolvedValue({
+        id: "don-pend-1",
+        amount: 1000,
+        status: "pending",
+        paymentMethod: "offline",
+        campaignId: "camp-100",
+        campaign: { id: "camp-100", title: "Water Well" },
+        receiptNumber: null,
+      });
+
+      prisma.donation.count.mockResolvedValue(10); // for receipt generation count
+      prisma.donation.update.mockResolvedValue({
+        id: "don-pend-1",
+        amount: 1200,
+        status: "paid",
+        paymentMethod: "offline",
+        receiptNumber: "YUWA-2026-0011-abcd1234",
+        campaign: { id: "camp-100", title: "Water Well" },
+      });
+
+      prisma.campaigns.update.mockResolvedValue({
+        id: "camp-100",
+        raisedAmount: 1200,
+        goalAmount: 2000,
+      });
+
+      const res = await request(app)
+        .put("/api/V1/admin/donation/verify-offline/don-pend-1")
+        .send({
+          amount: 1200,
+          message: "Verified in cash",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.msg).toBe("Offline donation verified successfully");
+      expect(prisma.donation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "don-pend-1" },
+          data: expect.objectContaining({
+            status: "paid",
+            amount: 1200,
+            message: "Verified in cash",
+          }),
+        })
+      );
+      expect(prisma.campaigns.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "camp-100" },
+          data: {
+            raisedAmount: {
+              increment: 1200,
+            },
+          },
+        })
+      );
+    });
+
+    it("should reject verification if donation is already paid", async () => {
+      prisma.donation.findUnique.mockResolvedValue({
+        id: "don-already-paid",
+        amount: 500,
+        status: "paid",
+        paymentMethod: "offline",
+      });
+
+      const res = await request(app)
+        .put("/api/V1/admin/donation/verify-offline/don-already-paid")
+        .send({ amount: 500 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message || res.body.msg).toContain("already verified");
+    });
+
+    it("should reject verification if donation is online paymentMethod", async () => {
+      prisma.donation.findUnique.mockResolvedValue({
+        id: "don-online",
+        amount: 500,
+        status: "pending",
+        paymentMethod: "online",
+      });
+
+      const res = await request(app)
+        .put("/api/V1/admin/donation/verify-offline/don-online")
+        .send({ amount: 500 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message || res.body.msg).toContain("Only offline donations");
+    });
+
+    it("should directly record offline donation from admin panel and generate receipt immediately", async () => {
+      prisma.campaigns.findUnique.mockResolvedValue({ id: "camp-200" });
+      prisma.donation.count.mockResolvedValue(12);
+      prisma.donation.create.mockResolvedValue({
+        id: "don-direct-1",
+        amount: 2500,
+        status: "paid",
+        paymentMethod: "offline",
+        receiptNumber: "YUWA-2026-0013-11223344",
+        campaignId: "camp-200",
+      });
+      prisma.campaigns.update.mockResolvedValue({
+        id: "camp-200",
+        raisedAmount: 2500,
+        goalAmount: 5000,
+      });
+
+      const res = await request(app)
+        .post("/api/V1/admin/donation/create-offline")
+        .send({
+          amount: 2500,
+          firstName: "InOffice",
+          lastName: "Donor",
+          email: "inoffice@example.com",
+          phone: "9876543210",
+          campaignId: "camp-200",
+          message: "Cash handed at headquarters",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.msg).toBe("Offline donation recorded successfully");
+      expect(prisma.donation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            amount: 2500,
+            status: "paid",
+            paymentMethod: "offline",
+            campaignId: "camp-200",
+          }),
+        })
+      );
+      expect(prisma.campaigns.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "camp-200" },
+          data: {
+            raisedAmount: {
+              increment: 2500,
+            },
+          },
+        })
+      );
+    });
+
+    it("should block receipt retrieval when offline donation is still pending", async () => {
+      prisma.donation.findFirst.mockResolvedValue({
+        id: "don-pend-99",
+        status: "pending",
+        receiptNumber: null,
+      });
+
+      const res = await request(app).get("/api/V1/web/payment/receipt/don-pend-99");
+      expect(res.status).toBe(400);
+      expect(res.body.message || res.body.msg).toContain("pending verification");
     });
   });
 });
