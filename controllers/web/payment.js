@@ -9,10 +9,14 @@ import {createHmac} from "node:crypto"
 
 //! create order
 export const createOrder = async (req, res, next) =>{
-    const {amount, campaignId, campaignTitle, firstName, lastName, email, phone, address, message, paymentMethod} = req.body
+    const {amount, campaignId, campaignTitle, firstName, lastName, email, phone, address, message, paymentMethod, pan} = req.body
     try {
         if(!amount || Number(amount) <= 0)
             return next(errorHandler(paymentError.Amount_Required))
+
+        const cleanPan = pan && typeof pan === "string" && pan.trim() !== ""
+            ? pan.trim().toUpperCase()
+            : null
 
         const validCampaignId = campaignId && typeof campaignId === "string" && campaignId.trim() !== ""
             ? campaignId.trim()
@@ -41,6 +45,7 @@ export const createOrder = async (req, res, next) =>{
                     email,
                     phone,
                     address,
+                    pan: cleanPan,
                     message
                 }
             });
@@ -74,7 +79,7 @@ export const createOrder = async (req, res, next) =>{
                  status: "created",
                  paymentMethod: "online",
                  campaignId: validCampaignId,
-                 firstName, lastName, email, phone, address, message
+                 firstName, lastName, email, phone, address, pan: cleanPan, message
              }
         });
 
@@ -332,6 +337,14 @@ export const verifySignature = async (req, res, next) =>{
                     donorEmail: updatedDonation.email || "",
                     donorPhone: updatedDonation.phone || "",
                     donorAddress: updatedDonation.address || "",
+                    donorPan: updatedDonation.pan || "",
+                    donor: {
+                        name: donorName,
+                        email: updatedDonation.email || "",
+                        phone: updatedDonation.phone || "",
+                        address: updatedDonation.address || "",
+                        pan: updatedDonation.pan || null
+                    },
                     paymentMethod: updatedDonation.paymentMethod,
                     campaignTitle,
                     status: updatedDonation.status,
@@ -421,6 +434,14 @@ export const getReceiptDetails = async (req, res, next) => {
                 donorEmail: donation.email || "",
                 donorPhone: donation.phone || "",
                 donorAddress: donation.address || "",
+                donorPan: donation.pan || "",
+                donor: {
+                    name: donorName,
+                    email: donation.email || "",
+                    phone: donation.phone || "",
+                    address: donation.address || "",
+                    pan: donation.pan || null
+                },
                 paymentMethod: donation.paymentMethod,
                 campaignTitle,
                 status: donation.status,

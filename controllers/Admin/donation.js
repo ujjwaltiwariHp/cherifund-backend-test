@@ -108,16 +108,19 @@ export const buildDonationWhereClause = (query = {}) => {
     // Status filter:
     if (status && status !== "all") {
         if (status === "paid") {
-            whereCondition.status = { in: ["paid", "offline"] };
+            whereCondition.status = { in: ["paid", "offline", "completed"] };
         } else {
             whereCondition.status = status;
         }
     } else if (status === "all") {
-        // Explicitly include all statuses (paid, pending, etc.)
+        // Explicitly include all active donations (paid, offline, pending, completed)
+        whereCondition.status = { in: ["paid", "offline", "pending", "completed"] };
     } else if (paymentMethod === "offline") {
-        // When viewing offline tab without explicit status, show all offline donations
+        // When viewing offline tab without explicit status, show all offline donations (pending and verified)
+        whereCondition.status = { in: ["paid", "offline", "pending"] };
     } else {
-        whereCondition.status = { in: ["paid", "offline"] };
+        // Default view: include confirmed donations and new offline pledges so new requests show at the top row
+        whereCondition.status = { in: ["paid", "offline", "pending", "completed"] };
     }
 
     // Type filter: general vs campaign
@@ -178,10 +181,11 @@ export const getAllDonations = async (req, res, next) => {
 
         const whereCondition = buildDonationWhereClause(req.query);
 
-        const baseStatus = whereCondition.status || { in: ["paid", "offline"] };
+        // Summary metrics strictly calculate verified/settled funds (excluding unverified pending pledges)
+        const verifiedStatus = { in: ["paid", "offline", "completed"] };
         const scopeCondition = req.query.campaignId
-            ? { campaignId: req.query.campaignId, status: baseStatus }
-            : { status: baseStatus };
+            ? { campaignId: req.query.campaignId, status: verifiedStatus }
+            : { status: verifiedStatus };
 
         const [
             totalFilteredDonations,
@@ -372,6 +376,9 @@ export const verifyOfflineDonation = async (req, res, next) => {
         }
 
         const verificationNotes = req.body.notes !== undefined ? req.body.notes : req.body.message;
+        const updatedPan = req.body.pan !== undefined
+            ? (req.body.pan && typeof req.body.pan === "string" && req.body.pan.trim() ? req.body.pan.trim().toUpperCase() : null)
+            : existingDonation.pan;
 
         const verifiedResult = await prisma.$transaction(async (tx) => {
             const receiptNumber = existingDonation.receiptNumber || (await generateReceiptNumber(tx));
@@ -382,6 +389,7 @@ export const verifyOfflineDonation = async (req, res, next) => {
                     status: "paid",
                     amount: confirmedAmount,
                     receiptNumber,
+                    pan: updatedPan,
                     message: verificationNotes !== undefined ? verificationNotes : existingDonation.message
                 },
                 include: {
@@ -432,13 +440,17 @@ export const verifyOfflineDonation = async (req, res, next) => {
 };
 
 export const createDirectOfflineDonation = async (req, res, next) => {
-    const { amount, firstName, lastName, email, phone, address, message, campaignId } = req.body;
+    const { amount, firstName, lastName, email, phone, address, pan, message, campaignId } = req.body;
 
     try {
         const parsedAmount = parseFloat(amount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Valid donation amount is required" }));
         }
+
+        const cleanPan = pan && typeof pan === "string" && pan.trim() !== ""
+            ? pan.trim().toUpperCase()
+            : null;
 
         let validCampaignId = null;
         if (campaignId && String(campaignId).trim() !== "") {
@@ -465,6 +477,7 @@ export const createDirectOfflineDonation = async (req, res, next) => {
                     email,
                     phone,
                     address,
+                    pan: cleanPan,
                     message
                 },
                 include: {

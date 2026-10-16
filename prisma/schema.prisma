@@ -211,6 +211,7 @@ model Donation {
   email String?
   phone String?
   address String?
+  pan String?
   message String? @db.Text
 
   campaignId String?

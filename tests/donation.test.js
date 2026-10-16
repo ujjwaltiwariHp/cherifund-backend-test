@@ -169,7 +169,7 @@ describe("Donation Admin APIs", () => {
       });
       expect(prisma.donation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ campaignId: null, status: { in: ["paid", "offline"] } }),
+          where: expect.objectContaining({ campaignId: null, status: { in: ["paid", "offline", "pending", "completed"] } }),
         })
       );
     });
