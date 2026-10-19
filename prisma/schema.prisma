@@ -154,13 +154,17 @@ model Member {
 //! Banner
 model Banner {
   id String @id @default(uuid())
+  pageName String @default("Home")
   title Json
   subtitle Json
-  priority Int @unique
+  description Json?
+  priority Int
   imageUrl Json
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([pageName, priority])
 }
 
 
@@ -195,11 +199,23 @@ model Feedback {
 
 model Donation {
   id String @id @default(uuid())
-  razorpayId String @unique
+  razorpayId String? @unique
+  orderId String? @unique
   amount Float
   status String @default("created")
-  campaignId String
-  campaign Campaigns @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  paymentMethod String @default("online")
+  receiptNumber String? @unique
+  
+  firstName String?
+  lastName String?
+  email String?
+  phone String?
+  address String?
+  pan String?
+  message String? @db.Text
+
+  campaignId String?
+  campaign Campaigns? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 }
@@ -226,4 +242,28 @@ model Event {
   updatedAt DateTime @updatedAt
 
   comments comment[]
+}
+
+model Sponsor {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  name             Json
+  category         Json
+  location         Json?
+  shortDescription Json
+  description      Json
+  website          String?
+  imageUrl         Json
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+//! Gallery Image
+model GalleryImage {
+  id        String   @id @default(uuid())
+  imageUrl  Json     // { url: String, public_id: String }
+  altText   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

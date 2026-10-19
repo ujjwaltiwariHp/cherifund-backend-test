@@ -39,5 +39,15 @@ export const bannerError = {
     Subtitle_Length : {
         message : "Subtitle must be 60 words or less",
         status : httpStatus.BAD_REQUEST
+    },
+
+    Description_Length : {
+        message : "Description must be 60 words or less",
+        status : httpStatus.BAD_REQUEST
+    },
+
+    PageName_Invalid : {
+        message : "Invalid or missing pageName",
+        status : httpStatus.BAD_REQUEST
     }
 }

@@ -309,6 +309,27 @@ export const updateCampaign = async (req, res, next) =>{
             categoryId = existingCategory.id
         }
 
+        const parsedGoalAmount = goalAmount !== undefined && goalAmount !== null && goalAmount !== ""
+            ? parseFloat(goalAmount)
+            : existingCampaign.goalAmount;
+
+        let updatedStatus = status ?? existingCampaign.status;
+
+        // Auto-recalculate status if status was not explicitly changed:
+        // 1. If campaign was "Completed" and new goalAmount is increased above raisedAmount, revert to "Active".
+        // 2. If campaign was "Active" and new goalAmount is less than or equal to raisedAmount, mark as "Completed".
+        if (!status || status === existingCampaign.status) {
+            if (existingCampaign.status !== "Inactive") {
+                if (existingCampaign.raisedAmount >= parsedGoalAmount) {
+                    updatedStatus = "Completed";
+                } else {
+                    updatedStatus = "Active";
+                }
+            }
+        } else if (status === "Completed" && existingCampaign.raisedAmount < parsedGoalAmount) {
+            updatedStatus = "Active";
+        }
+
         await prisma.campaigns.update({
             where : {
                 id : campaignId
@@ -320,9 +341,9 @@ export const updateCampaign = async (req, res, next) =>{
                 summary : summary ?? existingCampaign.summary,
                 keyPoints : parsedKeyPoints,
                 imageUrl :imageObj,
-                goalAmount : goalAmount ? parseFloat(goalAmount) : existingCampaign.goalAmount,
+                goalAmount : parsedGoalAmount,
                 location : location ?? existingCampaign.location,
-                status : status ?? existingCampaign.status
+                status : updatedStatus
             }
         })
 
