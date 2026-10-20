@@ -179,16 +179,21 @@ export const monthlyFunds = async (req, res, next) => {
         const startDate = new Date(`${year}-01-01T00:00:00.000Z`)
         const endDate   = new Date(`${year + 1}-01-01T00:00:00.000Z`)
 
-        //! fetch all verified donations for the year (only amount + createdAt needed)
-        const donations = await prisma.donation.findMany({
-            where: {
-                status: { in: ["paid", "offline"] },
-                createdAt: { gte: startDate, lt: endDate }
-            },
-            select: { amount: true, createdAt: true }
-        })
+        //! Database-level aggregation (processes 0 rows in Node.js memory)
+        const aggregatedRows = await prisma.$queryRaw`
+            SELECT 
+                EXTRACT(MONTH FROM "createdAt")::INT AS "monthNumber",
+                COALESCE(SUM("amount"), 0)::FLOAT AS "funds",
+                COUNT("id")::INT AS "count"
+            FROM "Donation"
+            WHERE "status" IN ('paid', 'offline')
+              AND "createdAt" >= ${startDate}
+              AND "createdAt" < ${endDate}
+            GROUP BY 1
+            ORDER BY 1 ASC;
+        `
 
-        //! build a 12-slot array and bucket each donation by month
+        //! build a 12-slot array and map aggregated results
         const monthlyBuckets = Array.from({ length: 12 }, (_, i) => ({
             month: MONTH_NAMES[i],
             monthNumber: i + 1,
@@ -196,11 +201,15 @@ export const monthlyFunds = async (req, res, next) => {
             count: 0
         }))
 
-        donations.forEach(d => {
-            const monthIndex = new Date(d.createdAt).getMonth() // 0-based
-            monthlyBuckets[monthIndex].funds  += d.amount || 0
-            monthlyBuckets[monthIndex].count  += 1
-        })
+        if (Array.isArray(aggregatedRows)) {
+            aggregatedRows.forEach(row => {
+                const idx = Number(row.monthNumber) - 1
+                if (idx >= 0 && idx < 12) {
+                    monthlyBuckets[idx].funds = Number(row.funds) || 0
+                    monthlyBuckets[idx].count = Number(row.count) || 0
+                }
+            })
+        }
 
         const totalYearFunds = monthlyBuckets.reduce((sum, m) => sum + m.funds, 0)
 

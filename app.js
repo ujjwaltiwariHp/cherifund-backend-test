@@ -6,7 +6,49 @@ import {swaggerDocument, swaggerUi} from "./swagger/swagger.js"
 import basicAuth from "express-basic-auth"
 import { razorpayWebhook } from "./controllers/web/payment.js"
 
+import compression from "compression"
+import helmet from "helmet"
+import { rateLimit } from "express-rate-limit"
+
 const app = express()
+
+//! Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: false
+}))
+
+//! Gzip/Brotli response compression for high throughput
+app.use(compression())
+
+//! Global rate limiter (protects backend against DDOS / traffic floods)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Limit each IP to 1000 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many requests from this IP, please try again after 15 minutes."
+  }
+})
+app.use("/api/", globalLimiter)
+
+//! Write operations rate limiter (prevents spam on forms, comments, feedback)
+const writeLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 30, // Limit each IP to 30 submissions per 5 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Submission limit exceeded. Please wait a few minutes before submitting again."
+  }
+})
+app.use("/api/V1/web/form", writeLimiter)
+app.use("/api/V1/web/comment", writeLimiter)
+app.use("/api/V1/web/feedback", writeLimiter)
+app.use("/api/V1/web/payment/create-order", writeLimiter)
 
 app.use(cors())
 app.post("/api/V1/payment/razorpay-webhook", express.json({
