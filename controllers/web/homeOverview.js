@@ -16,7 +16,7 @@ export const getHomeOverview = async (req, res, next) => {
   try {
     const overviewData = await getOrSetCache(cacheKey, 300, async () => {
       // Execute read queries concurrently using connection pool
-      const [banners, campaigns, sponsors, feedbacks, blogs] = await Promise.all([
+      const [banners, campaigns, sponsors, feedbacks, blogs, members, gallery] = await Promise.all([
         // 1. Banners
         prisma.banner.findMany({
           where: { pageName: "Home" },
@@ -48,6 +48,17 @@ export const getHomeOverview = async (req, res, next) => {
           take: 3,
           orderBy: { createdAt: "desc" },
           include: { category: true }
+        }),
+
+        // 6. Featured Members / Volunteers (limit 4)
+        prisma.member.findMany({
+          take: 4,
+          orderBy: { createdAt: "desc" }
+        }),
+
+        // 7. Gallery Images
+        prisma.galleryImage.findMany({
+          orderBy: { createdAt: "desc" }
         })
       ]);
 
@@ -109,12 +120,35 @@ export const getHomeOverview = async (req, res, next) => {
         createdAt: b.createdAt
       }));
 
+      const formattedMembers = members.map((m) => ({
+        id: m.id,
+        name: pickLanguage(m.name, lang),
+        image: m.imageUrl ? m.imageUrl.url : null,
+        position: pickLanguage(m.position, lang),
+        description: pickLanguage(m.description, lang),
+        about: pickLanguage(m.about, lang),
+        title: pickLanguage(m.title, lang),
+        keyPoints: pickLanguage(m.keyPoints, lang),
+        facebookUrl: m.facebookUrl,
+        instagramUrl: m.instagramUrl,
+        twitterUrl: m.twitterUrl,
+        linkedInUrl: m.linkedInUrl
+      }));
+
+      const formattedGallery = gallery.map((img) => ({
+        id: img.id,
+        imageUrl: img.imageUrl?.url || null,
+        altText: img.altText
+      }));
+
       return {
         banners: formattedBanners,
         campaigns: formattedCampaigns,
         sponsors: formattedSponsors,
         feedbacks: formattedFeedbacks,
-        blogs: formattedBlogs
+        blogs: formattedBlogs,
+        members: formattedMembers,
+        gallery: formattedGallery
       };
     });
 
