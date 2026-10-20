@@ -9,6 +9,7 @@ import { razorpayWebhook } from "./controllers/web/payment.js"
 import compression from "compression"
 import helmet from "helmet"
 import { rateLimit } from "express-rate-limit"
+import { invalidateCachePrefix } from "./util/cacheHelper.js"
 
 const app = express()
 
@@ -81,6 +82,18 @@ app.get("/swagger.json", noCache, swaggerAuth, (req, res) =>{
     res.setHeader("content-type", "application/json")
     res.send(swaggerDocument)
 })
+
+//! Auto-invalidate public home overview cache on successful Admin mutations
+app.use("/api/V1/admin", (req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    res.on("finish", () => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        invalidateCachePrefix("home:overview:");
+      }
+    });
+  }
+  next();
+});
 
 app.use("/api/V1", route)
 

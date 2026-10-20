@@ -59,3 +59,15 @@ export const getOrSetCache = async (key, ttlSeconds, fetchFn) => {
   memoryCache.set(key, fresh, ttlSeconds);
   return fresh;
 };
+
+export const setCache = async (key, value, ttlSeconds = 300) => {
+  memoryCache.set(key, value, ttlSeconds);
+};
+
+export const getCache = async (key) => {
+  return memoryCache.get(key);
+};
+
+export const invalidateCachePrefix = async (prefix) => {
+  memoryCache.delByPrefix(prefix);
+};

@@ -98,7 +98,8 @@ export const getHomeOverview = async (req, res, next) => {
         name: pickLanguage(s.name, lang),
         category: pickLanguage(s.category, lang),
         website: s.website,
-        image: s.imageUrl?.url || null
+        image: s.imageUrl?.url || null,
+        logo: s.imageUrl?.url || null
       }));
 
       const formattedFeedbacks = feedbacks.map((f) => ({
