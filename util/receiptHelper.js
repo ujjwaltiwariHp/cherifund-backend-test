@@ -97,20 +97,25 @@ export const generateReceiptNumber = async (client = prisma) => {
       const nextCount = String(result[0]?.nextval || 1).padStart(4, "0");
       return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
     } catch (fallbackError) {
-      // Fallback for mocked/unsupported test environments
-      const startOfYear = new Date(currentYear, 0, 1);
-      const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-      const countInYear = await client.donation.count({
-        where: {
-          receiptNumber: { not: null },
-          createdAt: {
-            gte: startOfYear,
-            lte: endOfYear
+      try {
+        const startOfYear = new Date(currentYear, 0, 1);
+        const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+        const countInYear = await client.donation.count({
+          where: {
+            receiptNumber: { not: null },
+            createdAt: {
+              gte: startOfYear,
+              lte: endOfYear
+            }
           }
-        }
-      });
-      const nextCount = String(countInYear + 1).padStart(4, "0");
-      return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
+        });
+        const nextCount = String(countInYear + 1).padStart(4, "0");
+        return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
+      } catch (err) {
+        // Guaranteed fallback: timestamp slice + random UUID
+        const timestampCount = String(Date.now()).slice(-4);
+        return `YUWA-${currentYear}-${timestampCount}-${shortUuid}`;
+      }
     }
   }
 };

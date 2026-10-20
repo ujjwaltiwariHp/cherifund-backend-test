@@ -153,16 +153,16 @@ export const razorpayWebhook = async (req, res, next) =>{
         const orderId = payment.order_id;
 
         if (event == "payment.captured" || event == "payment.authorized"){
-
+            const defaultReceiptNumber = await generateReceiptNumber(prisma);
             await prisma.$transaction(async(tx) => {
                 const existingDonation = await tx.donation.findUnique({
                     where: { orderId: orderId }
                 });
 
                 const isAlreadyPaid = existingDonation && existingDonation.status === "paid";
+                const receiptNumber = existingDonation?.receiptNumber || defaultReceiptNumber;
 
                 if (existingDonation) {
-                    const receiptNumber = existingDonation.receiptNumber || (await generateReceiptNumber(tx));
                     await tx.donation.update({
                         where: { orderId: orderId },
                         data: {
@@ -172,7 +172,6 @@ export const razorpayWebhook = async (req, res, next) =>{
                         }
                     });
                 } else {
-                    const receiptNumber = await generateReceiptNumber(tx);
                     await tx.donation.create({
                         data : {
                             orderId: orderId,
@@ -257,6 +256,9 @@ export const verifySignature = async (req, res, next) =>{
                                      .digest("hex")
 
         if(generated_signature == razorpay_signature){
+            // Pre-generate receipt number using main pool before entering transaction
+            const defaultReceiptNumber = await generateReceiptNumber(prisma);
+
             // Update donation status and assign receiptNumber if not already assigned
             const updatedDonation = await prisma.$transaction(async (tx) => {
                 const existingDonation = await tx.donation.findUnique({
@@ -271,10 +273,7 @@ export const verifySignature = async (req, res, next) =>{
                     }
                 });
 
-                let receiptNumber = existingDonation?.receiptNumber;
-                if (!receiptNumber) {
-                    receiptNumber = await generateReceiptNumber(tx);
-                }
+                const receiptNumber = existingDonation?.receiptNumber || defaultReceiptNumber;
 
                 if (existingDonation) {
                     const updated = await tx.donation.update({
