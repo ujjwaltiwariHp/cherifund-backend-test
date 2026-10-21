@@ -50,6 +50,9 @@ model Campaigns {
 
   comments comment[]
   donation Donation[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([categoryId])
 }
 
 //! enum status
@@ -97,6 +100,11 @@ model comment {
 //! self relation
   replies comment[] @relation("commentReplies")
   parent comment? @relation("commentReplies", fields: [parentCommentId], references: [id])
+
+  @@index([campaignId, status])
+  @@index([blogId, status])
+  @@index([eventId, status])
+  @@index([createdAt(sort: Desc)])
 }
 
 //! comment status
@@ -129,6 +137,8 @@ model Blog {
   updatedAt DateTime @updatedAt
 
   comments comment[]
+
+  @@index([categoryId, createdAt(sort: Desc)])
 }
 
 //! Member
@@ -182,6 +192,8 @@ model Form {
   isViewed Boolean @default(false)
 
   createdAt DateTime @default(now())
+
+  @@index([formType, createdAt(sort: Desc)])
 }
 
 //! feedback
@@ -218,6 +230,13 @@ model Donation {
   campaign Campaigns? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([campaignId, status])
+  @@index([paymentMethod])
+  @@index([orderId])
+  @@index([receiptNumber])
+  @@index([createdAt])
 }
 
 model EmailSubscriber {
@@ -242,6 +261,9 @@ model Event {
   updatedAt DateTime @updatedAt
 
   comments comment[]
+
+  @@index([startTime, endTime])
+  @@index([createdAt(sort: Desc)])
 }
 
 model Sponsor {

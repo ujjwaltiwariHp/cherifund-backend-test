@@ -14,7 +14,11 @@ import sponsorRoute from "./sponsor.js"
 import galleryRoute from "./gallery.js"
 
 
+import { getHomeOverview } from "../../controllers/web/homeOverview.js"
+
 const router = express.Router()
+
+router.get("/home-overview", getHomeOverview)
 
 router.use("/user", userRoute)
 router.use("/campaign", campaignRoute)

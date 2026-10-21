@@ -83,22 +83,39 @@ export const numberToWordsINR = (num) => {
  */
 export const generateReceiptNumber = async (client = prisma) => {
   const currentYear = new Date().getFullYear();
-  const startOfYear = new Date(currentYear, 0, 1);
-  const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-
-  // Count existing receipts generated for this calendar year
-  const countInYear = await client.donation.count({
-    where: {
-      receiptNumber: { not: null },
-      createdAt: {
-        gte: startOfYear,
-        lte: endOfYear
-      }
-    }
-  });
-
-  const nextCount = String(countInYear + 1).padStart(4, "0");
   const shortUuid = randomBytes(4).toString("hex");
 
-  return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
+  try {
+    const result = await client.$queryRawUnsafe(`SELECT nextval('donation_receipt_seq')::text AS nextval;`);
+    const nextCount = String(result[0]?.nextval || 1).padStart(4, "0");
+    return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
+  } catch (seqError) {
+    try {
+      // Auto-initialize sequence if it doesn't exist yet
+      await client.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS donation_receipt_seq START 1;`);
+      const result = await client.$queryRawUnsafe(`SELECT nextval('donation_receipt_seq')::text AS nextval;`);
+      const nextCount = String(result[0]?.nextval || 1).padStart(4, "0");
+      return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
+    } catch (fallbackError) {
+      try {
+        const startOfYear = new Date(currentYear, 0, 1);
+        const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+        const countInYear = await client.donation.count({
+          where: {
+            receiptNumber: { not: null },
+            createdAt: {
+              gte: startOfYear,
+              lte: endOfYear
+            }
+          }
+        });
+        const nextCount = String(countInYear + 1).padStart(4, "0");
+        return `YUWA-${currentYear}-${nextCount}-${shortUuid}`;
+      } catch (err) {
+        // Guaranteed fallback: timestamp slice + random UUID
+        const timestampCount = String(Date.now()).slice(-4);
+        return `YUWA-${currentYear}-${timestampCount}-${shortUuid}`;
+      }
+    }
+  }
 };

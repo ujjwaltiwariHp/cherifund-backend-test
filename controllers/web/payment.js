@@ -5,12 +5,21 @@ import { errorHandler } from "../../util/errorHandler.js"
 import { logError } from "../../util/logHelper.js"
 import { razorpay } from "../../util/razorpay.js"
 import { generateReceiptNumber, numberToWordsINR } from "../../util/receiptHelper.js"
+import { getCache, setCache, invalidateCachePrefix } from "../../util/cacheHelper.js"
 import {createHmac} from "node:crypto"
 
 //! create order
 export const createOrder = async (req, res, next) =>{
     const {amount, campaignId, campaignTitle, firstName, lastName, email, phone, address, message, paymentMethod, pan} = req.body
+    const idempotencyKey = req.headers["idempotency-key"] || req.body.idempotencyKey;
     try {
+        if (idempotencyKey) {
+            const cachedResponse = await getCache(`idempotency:${idempotencyKey}`);
+            if (cachedResponse) {
+                return res.status(httpStatus.OK).json(cachedResponse);
+            }
+        }
+
         if(!amount || Number(amount) <= 0)
             return next(errorHandler(paymentError.Amount_Required))
 
@@ -50,13 +59,19 @@ export const createOrder = async (req, res, next) =>{
                 }
             });
 
-            return res.status(httpStatus.CREATED).json({
+            const responseData = {
                 msg: "Offline donation request submitted successfully",
                 donationId: donation.id,
                 status: donation.status,
                 paymentMethod: donation.paymentMethod,
                 amount: donation.amount
-            });
+            };
+
+            if (idempotencyKey) {
+                await setCache(`idempotency:${idempotencyKey}`, responseData, 600);
+            }
+
+            return res.status(httpStatus.CREATED).json(responseData);
         }
 
         const options = {
@@ -83,12 +98,18 @@ export const createOrder = async (req, res, next) =>{
              }
         });
 
-        res.status(httpStatus.CREATED).json({
+        const responseData = {
             orderId : order.id,
             key : process.env.RAZORPAY_KEY_ID,
             amount : order.amount,
             currency : order.currency
-        })
+        };
+
+        if (idempotencyKey) {
+            await setCache(`idempotency:${idempotencyKey}`, responseData, 600);
+        }
+
+        res.status(httpStatus.CREATED).json(responseData);
     } catch (error) {
         logError("Error in create order (payment)", error )
         next(error)
@@ -132,16 +153,16 @@ export const razorpayWebhook = async (req, res, next) =>{
         const orderId = payment.order_id;
 
         if (event == "payment.captured" || event == "payment.authorized"){
-
+            const defaultReceiptNumber = await generateReceiptNumber(prisma);
             await prisma.$transaction(async(tx) => {
                 const existingDonation = await tx.donation.findUnique({
                     where: { orderId: orderId }
                 });
 
                 const isAlreadyPaid = existingDonation && existingDonation.status === "paid";
+                const receiptNumber = existingDonation?.receiptNumber || defaultReceiptNumber;
 
                 if (existingDonation) {
-                    const receiptNumber = existingDonation.receiptNumber || (await generateReceiptNumber(tx));
                     await tx.donation.update({
                         where: { orderId: orderId },
                         data: {
@@ -151,7 +172,6 @@ export const razorpayWebhook = async (req, res, next) =>{
                         }
                     });
                 } else {
-                    const receiptNumber = await generateReceiptNumber(tx);
                     await tx.donation.create({
                         data : {
                             orderId: orderId,
@@ -189,6 +209,7 @@ export const razorpayWebhook = async (req, res, next) =>{
                     }
                 }
             })
+            invalidateCachePrefix("home:overview:");
         }
 
         if(event == "payment.failed"){
@@ -235,6 +256,9 @@ export const verifySignature = async (req, res, next) =>{
                                      .digest("hex")
 
         if(generated_signature == razorpay_signature){
+            // Pre-generate receipt number using main pool before entering transaction
+            const defaultReceiptNumber = await generateReceiptNumber(prisma);
+
             // Update donation status and assign receiptNumber if not already assigned
             const updatedDonation = await prisma.$transaction(async (tx) => {
                 const existingDonation = await tx.donation.findUnique({
@@ -249,10 +273,7 @@ export const verifySignature = async (req, res, next) =>{
                     }
                 });
 
-                let receiptNumber = existingDonation?.receiptNumber;
-                if (!receiptNumber) {
-                    receiptNumber = await generateReceiptNumber(tx);
-                }
+                const receiptNumber = existingDonation?.receiptNumber || defaultReceiptNumber;
 
                 if (existingDonation) {
                     const updated = await tx.donation.update({
@@ -310,6 +331,8 @@ export const verifySignature = async (req, res, next) =>{
                     });
                 }
             });
+
+            invalidateCachePrefix("home:overview:");
 
             // Extract campaign title in English or Hindi
             let campaignTitle = "General Donation";

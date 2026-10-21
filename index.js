@@ -6,6 +6,17 @@ import { logInfo } from "./util/logHelper.js";
 const port = process.env.PORT
 connectDB()
 
-app.listen(port, ()=>{
+const server = app.listen(port, ()=>{
     logInfo(`server is running on server ${port}`)
+    if (process.send) {
+        process.send("ready")
+    }
+})
+
+process.on("SIGINT", () => {
+    logInfo("SIGINT signal received: closing HTTP server")
+    server.close(() => {
+        logInfo("HTTP server closed")
+        process.exit(0)
+    })
 })
