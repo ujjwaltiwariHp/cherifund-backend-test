@@ -13,11 +13,16 @@ import { invalidateCachePrefix } from "./util/cacheHelper.js"
 
 const app = express()
 
+app.set("trust proxy", 1)
+
 //! Security headers
 app.use(helmet({
   crossOriginResourcePolicy: false,
   contentSecurityPolicy: false
 }))
+
+//! Enable CORS before rate limiters so error responses and preflight OPTIONS always have CORS headers
+app.use(cors())
 
 //! Gzip/Brotli response compression for high throughput
 app.use(compression())
@@ -28,6 +33,7 @@ const globalLimiter = rateLimit({
   max: 1000, // Limit each IP to 1000 requests per window
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS" || req.originalUrl.includes("/admin"),
   message: {
     success: false,
     message: "Too many requests from this IP, please try again after 15 minutes."
@@ -41,6 +47,7 @@ const writeLimiter = rateLimit({
   max: 30, // Limit each IP to 30 submissions per 5 minutes
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS" || req.originalUrl.includes("/admin"),
   message: {
     success: false,
     message: "Submission limit exceeded. Please wait a few minutes before submitting again."
@@ -50,8 +57,6 @@ app.use("/api/V1/web/form", writeLimiter)
 app.use("/api/V1/web/comment", writeLimiter)
 app.use("/api/V1/web/feedback", writeLimiter)
 app.use("/api/V1/web/payment/create-order", writeLimiter)
-
-app.use(cors())
 app.post("/api/V1/payment/razorpay-webhook", express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;

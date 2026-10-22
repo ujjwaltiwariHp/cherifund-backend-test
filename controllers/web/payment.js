@@ -40,7 +40,49 @@ export const createOrder = async (req, res, next) =>{
             if(!existingCampaign)
                 return next(errorHandler(paymentError.Not_Exists))
         }
-            
+
+        if (paymentMethod === "direct") {
+            const receiptNumber = await generateReceiptNumber(prisma);
+            const donation = await prisma.donation.create({
+                data: {
+                    amount: Number(amount),
+                    status: "paid",
+                    paymentMethod: "online",
+                    receiptNumber,
+                    campaignId: validCampaignId,
+                    firstName,
+                    lastName,
+                    email,
+                    phone,
+                    address,
+                    pan: cleanPan,
+                    message
+                }
+            });
+
+            if (validCampaignId) {
+                await prisma.campaigns.update({
+                    where: { id: validCampaignId },
+                    data: { raisedAmount: { increment: Number(amount) } }
+                });
+            }
+
+            const responseData = {
+                msg: "Direct donation processed successfully",
+                donationId: donation.id,
+                receiptNumber,
+                status: "paid",
+                paymentMethod: "online",
+                amount: donation.amount
+            };
+
+            if (idempotencyKey) {
+                await setCache(`idempotency:${idempotencyKey}`, responseData, 600);
+            }
+
+            return res.status(httpStatus.CREATED).json(responseData);
+        }
+
         if (paymentMethod === "offline") {
             const donation = await prisma.donation.create({
                 data: {
