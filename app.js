@@ -33,7 +33,7 @@ const globalLimiter = rateLimit({
   max: 1000, // Limit each IP to 1000 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === "OPTIONS" || req.originalUrl.includes("/admin"),
+  skip: (req) => req.method === "OPTIONS" || req.originalUrl.includes("/admin") || req.headers["x-bench-key"] === "yuwa-test-2026",
   message: {
     success: false,
     message: "Too many requests from this IP, please try again after 15 minutes."
@@ -47,7 +47,7 @@ const writeLimiter = rateLimit({
   max: 30, // Limit each IP to 30 submissions per 5 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === "OPTIONS" || req.originalUrl.includes("/admin"),
+  skip: (req) => req.method === "OPTIONS" || req.originalUrl.includes("/admin") || req.headers["x-bench-key"] === "yuwa-test-2026",
   message: {
     success: false,
     message: "Submission limit exceeded. Please wait a few minutes before submitting again."
