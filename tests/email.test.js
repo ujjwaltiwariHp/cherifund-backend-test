@@ -138,7 +138,8 @@ describe("Email Service & Donation Receipt Dispatch", () => {
       expect(userCall[0]).toBe("rahul@example.com")
       expect(userCall[1]).toContain("We Received Your Message")
 
-      expect(adminCall[0]).toBe("yuwaindia@gmail.com")
+      const expectedAdminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "yuwaindia@gmail.com"
+      expect(adminCall[0]).toBe(expectedAdminEmail)
       expect(adminCall[1]).toContain("Rahul Singh")
     })
 
@@ -152,10 +153,11 @@ describe("Email Service & Donation Receipt Dispatch", () => {
         message: "Excited to teach children on weekends.",
       })
 
+      const expectedAdminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || "yuwaindia@gmail.com"
       expect(sendMail).toHaveBeenCalledTimes(2)
       expect(sendMail.mock.calls[0][0]).toBe("sneha@example.com")
       expect(sendMail.mock.calls[0][1]).toContain("Volunteer Community")
-      expect(sendMail.mock.calls[1][0]).toBe("yuwaindia@gmail.com")
+      expect(sendMail.mock.calls[1][0]).toBe(expectedAdminEmail)
       expect(sendMail.mock.calls[1][1]).toContain("Sneha Gupta")
     })
   })

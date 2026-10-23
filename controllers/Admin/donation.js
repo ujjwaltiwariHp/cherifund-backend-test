@@ -574,12 +574,32 @@ export const resendReceiptEmail = async (req, res, next) => {
             return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "Donation not found" }));
         }
 
-        if (donation.status === "pending" || !donation.receiptNumber) {
-            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Official receipt is only available for confirmed donations." }));
+        const statusLower = (donation.status || "").toLowerCase();
+        const isOffline = (donation.paymentMethod || "").toLowerCase() === "offline";
+        const isVerified = statusLower === "paid" || statusLower === "verified" || statusLower === "completed" || statusLower === "success";
+
+        if (isOffline && !isVerified) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "This offline donation is pending verification. Please verify it before sending an official receipt." }));
         }
 
-        if (!donation.email || donation.email.trim() === "") {
-            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "This donation does not have a donor email address on record." }));
+        if (!isVerified) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Official receipts can only be sent for confirmed or verified donations." }));
+        }
+
+        const cleanEmail = donation.email ? donation.email.trim() : "";
+        if (!cleanEmail || cleanEmail === "-" || !cleanEmail.includes("@")) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "This donation does not have a valid donor email address on record." }));
+        }
+
+        // Auto-generate receipt number if missing from older record
+        let receiptNumber = donation.receiptNumber;
+        if (!receiptNumber) {
+            receiptNumber = await generateReceiptNumber(prisma);
+            await prisma.donation.update({
+                where: { id: donation.id },
+                data: { receiptNumber }
+            });
+            donation.receiptNumber = receiptNumber;
         }
 
         let campaignTitle = "General Welfare Fund";
@@ -593,12 +613,12 @@ export const resendReceiptEmail = async (req, res, next) => {
             donation,
             campaignTitle,
             receiptNumber: donation.receiptNumber,
-            isOfflineVerified: donation.paymentMethod === "offline"
+            isOfflineVerified: isOffline
         });
 
         res.status(httpStatus.OK).json({
             success: true,
-            msg: `Official 80G receipt email sent successfully to ${donation.email}`,
+            msg: `Official 80G receipt and PDF certificate sent successfully to ${cleanEmail}`,
             receiptNumber: donation.receiptNumber
         });
     } catch (error) {
