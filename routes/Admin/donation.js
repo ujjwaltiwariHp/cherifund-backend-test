@@ -5,7 +5,8 @@ import {
     getAllDonations,
     exportAllDonationsCSV,
     verifyOfflineDonation,
-    createDirectOfflineDonation
+    createDirectOfflineDonation,
+    resendReceiptEmail
 } from "../../controllers/Admin/donation.js"
 import { authentication } from "../../middlewares/auth.js"
 import { isAdmin } from "../../middlewares/isAdmin.js"
@@ -16,6 +17,7 @@ router.get("/", authentication, isAdmin, getAllDonations)
 router.get("/export", authentication, isAdmin, exportAllDonationsCSV)
 router.put("/verify-offline/:donationId", authentication, isAdmin, verifyOfflineDonation)
 router.post("/create-offline", authentication, isAdmin, createDirectOfflineDonation)
+router.post("/:donationId/send-receipt-email", authentication, isAdmin, resendReceiptEmail)
 router.get("/campaign/:campaignId", authentication, isAdmin, getDonorsForCampaign)
 router.get("/campaign/:campaignId/export", authentication, isAdmin, exportDonorsCSV)
 

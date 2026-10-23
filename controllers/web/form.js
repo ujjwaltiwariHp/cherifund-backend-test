@@ -3,6 +3,7 @@ import { prisma } from "../../database/db.js"
 import { formError } from "../../errors/form.js"
 import { errorHandler } from "../../util/errorHandler.js"
 import { logError } from "../../util/logHelper.js"
+import { sendContactFormEmails, sendVolunteerFormEmails } from "../../services/emailService.js"
 
 //! contact query
 export const contactQuery = async (req, res, next) =>{
@@ -26,6 +27,10 @@ export const contactQuery = async (req, res, next) =>{
                 message
             }
         })
+
+        // Asynchronously dispatch user confirmation & admin alert
+        sendContactFormEmails({ name, email, phone, message })
+            .catch(e => console.error("[Form] Error sending contact form emails:", e));
 
         res.status(httpStatus.CREATED).json({
             msg : "Form submitted successfully",
@@ -130,6 +135,10 @@ export const becomeVolunteer = async (req, res, next) =>{
                 message
             }
         })    
+
+        // Asynchronously dispatch applicant welcome & admin alert
+        sendVolunteerFormEmails({ firstName, lastName, email, phone, occupation, message })
+            .catch(e => console.error("[Form] Error sending volunteer form emails:", e));
 
         res.status(httpStatus.CREATED).json({
             msg : "Form submitted successfully",
