@@ -7,6 +7,12 @@ import { razorpay } from "../../util/razorpay.js"
 import { generateReceiptNumber, numberToWordsINR } from "../../util/receiptHelper.js"
 import { getCache, setCache, invalidateCachePrefix } from "../../util/cacheHelper.js"
 import {createHmac} from "node:crypto"
+import {
+    sendDonationReceiptEmail,
+    sendAdminDonationAlert,
+    sendOfflinePledgeConfirmationEmail,
+    sendAdminPledgeAlert
+} from "../../services/emailService.js"
 
 //! create order
 export const createOrder = async (req, res, next) =>{
@@ -80,6 +86,20 @@ export const createOrder = async (req, res, next) =>{
                 await setCache(`idempotency:${idempotencyKey}`, responseData, 600);
             }
 
+            // Asynchronously dispatch donation receipt & admin alert for direct donations
+            sendDonationReceiptEmail({
+                donation,
+                campaignTitle: campaignTitle || "General Welfare Fund",
+                receiptNumber,
+                isOfflineVerified: true
+            }).catch(e => console.error("[Payment] Error sending direct donation receipt:", e));
+
+            sendAdminDonationAlert({
+                donation,
+                campaignTitle: campaignTitle || "General Welfare Fund",
+                receiptNumber
+            }).catch(e => console.error("[Payment] Error sending direct donation admin alert:", e));
+
             return res.status(httpStatus.CREATED).json(responseData);
         }
 
@@ -112,6 +132,17 @@ export const createOrder = async (req, res, next) =>{
             if (idempotencyKey) {
                 await setCache(`idempotency:${idempotencyKey}`, responseData, 600);
             }
+
+            // Asynchronously dispatch offline pledge acknowledgement & admin alert
+            sendOfflinePledgeConfirmationEmail({
+                donation,
+                campaignTitle: campaignTitle || "General Welfare Fund"
+            }).catch(e => console.error("[Payment] Error sending offline pledge confirmation:", e));
+
+            sendAdminPledgeAlert({
+                donation,
+                campaignTitle: campaignTitle || "General Welfare Fund"
+            }).catch(e => console.error("[Payment] Error sending offline pledge admin alert:", e));
 
             return res.status(httpStatus.CREATED).json(responseData);
         }
@@ -388,6 +419,19 @@ export const verifySignature = async (req, res, next) =>{
 
             const donorName = [updatedDonation.firstName, updatedDonation.lastName].filter(Boolean).join(" ") || "Generous Donor";
             const amountInWords = numberToWordsINR(updatedDonation.amount);
+
+            // Asynchronously dispatch 80G donation receipt email to donor and alert to admin
+            sendDonationReceiptEmail({
+                donation: updatedDonation,
+                campaignTitle,
+                receiptNumber: updatedDonation.receiptNumber
+            }).catch(e => console.error("[Payment] Error sending verified donation receipt email:", e));
+
+            sendAdminDonationAlert({
+                donation: updatedDonation,
+                campaignTitle,
+                receiptNumber: updatedDonation.receiptNumber
+            }).catch(e => console.error("[Payment] Error sending admin donation alert:", e));
 
             res.status(httpStatus.OK).json({
                 msg: "Payment verified",

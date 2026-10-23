@@ -3,6 +3,7 @@ import { prisma } from "../../database/db.js"
 import { logError } from "../../util/logHelper.js"
 import { errorHandler } from "../../util/errorHandler.js"
 import { generateReceiptNumber } from "../../util/receiptHelper.js"
+import { sendDonationReceiptEmail } from "../../services/emailService.js"
 
 export const getDonorsForCampaign = async (req, res, next) => {
     const { campaignId } = req.params;
@@ -427,6 +428,21 @@ export const verifyOfflineDonation = async (req, res, next) => {
             return updatedDonation;
         });
 
+        // Asynchronously dispatch official 80G receipt email to donor upon verification
+        let verifiedCampaignTitle = "General Welfare Fund";
+        if (verifiedResult.campaign?.title) {
+            verifiedCampaignTitle = typeof verifiedResult.campaign.title === "object"
+                ? verifiedResult.campaign.title.en || verifiedResult.campaign.title.hi || JSON.stringify(verifiedResult.campaign.title)
+                : String(verifiedResult.campaign.title);
+        }
+
+        sendDonationReceiptEmail({
+            donation: verifiedResult,
+            campaignTitle: verifiedCampaignTitle,
+            receiptNumber: verifiedResult.receiptNumber,
+            isOfflineVerified: true
+        }).catch(e => console.error("[AdminDonation] Error sending verified offline donation receipt:", e));
+
         res.status(httpStatus.OK).json({
             msg: "Offline donation verified successfully",
             donation: verifiedResult,
@@ -511,6 +527,21 @@ export const createDirectOfflineDonation = async (req, res, next) => {
             return newDonation;
         });
 
+        // Asynchronously dispatch official 80G receipt email to donor for direct offline entry
+        let directCampaignTitle = "General Welfare Fund";
+        if (donation.campaign?.title) {
+            directCampaignTitle = typeof donation.campaign.title === "object"
+                ? donation.campaign.title.en || donation.campaign.title.hi || JSON.stringify(donation.campaign.title)
+                : String(donation.campaign.title);
+        }
+
+        sendDonationReceiptEmail({
+            donation,
+            campaignTitle: directCampaignTitle,
+            receiptNumber: donation.receiptNumber,
+            isOfflineVerified: true
+        }).catch(e => console.error("[AdminDonation] Error sending direct offline donation receipt:", e));
+
         res.status(httpStatus.CREATED).json({
             msg: "Offline donation recorded successfully",
             donation,
@@ -519,6 +550,59 @@ export const createDirectOfflineDonation = async (req, res, next) => {
 
     } catch (error) {
         logError("Error in createDirectOfflineDonation", error);
+        next(error);
+    }
+};
+
+/**
+ * POST /admin/donation/:donationId/send-receipt-email
+ * Re-sends the official 80G receipt email to the donor
+ */
+export const resendReceiptEmail = async (req, res, next) => {
+    const { donationId } = req.params;
+    try {
+        if (!donationId) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Donation ID is required" }));
+        }
+
+        const donation = await prisma.donation.findUnique({
+            where: { id: donationId },
+            include: { campaign: true }
+        });
+
+        if (!donation) {
+            return next(errorHandler({ status: httpStatus.NOT_FOUND, message: "Donation not found" }));
+        }
+
+        if (donation.status === "pending" || !donation.receiptNumber) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Official receipt is only available for confirmed donations." }));
+        }
+
+        if (!donation.email || donation.email.trim() === "") {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "This donation does not have a donor email address on record." }));
+        }
+
+        let campaignTitle = "General Welfare Fund";
+        if (donation.campaign?.title) {
+            campaignTitle = typeof donation.campaign.title === "object"
+                ? donation.campaign.title.en || donation.campaign.title.hi || JSON.stringify(donation.campaign.title)
+                : String(donation.campaign.title);
+        }
+
+        await sendDonationReceiptEmail({
+            donation,
+            campaignTitle,
+            receiptNumber: donation.receiptNumber,
+            isOfflineVerified: donation.paymentMethod === "offline"
+        });
+
+        res.status(httpStatus.OK).json({
+            success: true,
+            msg: `Official 80G receipt email sent successfully to ${donation.email}`,
+            receiptNumber: donation.receiptNumber
+        });
+    } catch (error) {
+        logError("Error in resendReceiptEmail", error);
         next(error);
     }
 };
