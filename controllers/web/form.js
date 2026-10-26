@@ -4,6 +4,7 @@ import { formError } from "../../errors/form.js"
 import { errorHandler } from "../../util/errorHandler.js"
 import { logError } from "../../util/logHelper.js"
 import { sendContactFormEmails, sendVolunteerFormEmails } from "../../services/emailService.js"
+import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
 
 //! contact query
 export const contactQuery = async (req, res, next) =>{
@@ -31,6 +32,14 @@ export const contactQuery = async (req, res, next) =>{
         // Asynchronously dispatch user confirmation & admin alert
         sendContactFormEmails({ name, email, phone, message })
             .catch(e => console.error("[Form] Error sending contact form emails:", e));
+
+        // Real-time SSE alert to admin dashboard & inquiries table
+        broadcastRealtimeEvent("inquiry:created", {
+            type: "contact",
+            name,
+            email,
+            phone
+        });
 
         res.status(httpStatus.CREATED).json({
             msg : "Form submitted successfully",
@@ -139,6 +148,14 @@ export const becomeVolunteer = async (req, res, next) =>{
         // Asynchronously dispatch applicant welcome & admin alert
         sendVolunteerFormEmails({ firstName, lastName, email, phone, occupation, message })
             .catch(e => console.error("[Form] Error sending volunteer form emails:", e));
+
+        // Real-time SSE alert to admin dashboard & inquiries table
+        broadcastRealtimeEvent("inquiry:created", {
+            type: "volunteer",
+            name: `${firstName} ${lastName}`.trim(),
+            email,
+            phone
+        });
 
         res.status(httpStatus.CREATED).json({
             msg : "Form submitted successfully",

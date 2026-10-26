@@ -13,6 +13,7 @@ import {
     sendOfflinePledgeConfirmationEmail,
     sendAdminPledgeAlert
 } from "../../services/emailService.js"
+import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
 
 //! create order
 export const createOrder = async (req, res, next) =>{
@@ -100,6 +101,16 @@ export const createOrder = async (req, res, next) =>{
                 receiptNumber
             }).catch(e => console.error("[Payment] Error sending direct donation admin alert:", e));
 
+            // Real-time SSE alert to admin dashboard & donations table
+            broadcastRealtimeEvent("donation:created", {
+                type: "online",
+                amount: donation.amount,
+                receiptNumber,
+                donorName: [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor",
+                campaignTitle: campaignTitle || "General Welfare Fund",
+                donationId: donation.id
+            });
+
             return res.status(httpStatus.CREATED).json(responseData);
         }
 
@@ -143,6 +154,15 @@ export const createOrder = async (req, res, next) =>{
                 donation,
                 campaignTitle: campaignTitle || "General Welfare Fund"
             }).catch(e => console.error("[Payment] Error sending offline pledge admin alert:", e));
+
+            // Real-time SSE alert to admin dashboard & donations table
+            broadcastRealtimeEvent("donation:created", {
+                type: "offline",
+                amount: donation.amount,
+                donorName: [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor",
+                campaignTitle: campaignTitle || "General Welfare Fund",
+                donationId: donation.id
+            });
 
             return res.status(httpStatus.CREATED).json(responseData);
         }
@@ -432,6 +452,16 @@ export const verifySignature = async (req, res, next) =>{
                 campaignTitle,
                 receiptNumber: updatedDonation.receiptNumber
             }).catch(e => console.error("[Payment] Error sending admin donation alert:", e));
+
+            // Real-time SSE alert to admin dashboard & donations table
+            broadcastRealtimeEvent("donation:created", {
+                type: "online",
+                amount: updatedDonation.amount,
+                receiptNumber: updatedDonation.receiptNumber,
+                donorName,
+                campaignTitle,
+                donationId: updatedDonation.id
+            });
 
             res.status(httpStatus.OK).json({
                 msg: "Payment verified",

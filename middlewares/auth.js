@@ -6,7 +6,7 @@ import { logError } from "../util/logHelper.js"
 import jwt from "jsonwebtoken"
 
 export const authentication = async (req, res, next) =>{
-    const token  = req.cookies.token || (req.headers.authorization && req.headers.authorization.split(" ")[1])
+    const token  = req.cookies.token || req.query?.token || (req.headers.authorization && req.headers.authorization.split(" ")[1])
 
     if(!token) return next(errorHandler({
         message : "Invalid request",

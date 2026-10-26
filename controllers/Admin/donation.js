@@ -4,6 +4,7 @@ import { logError } from "../../util/logHelper.js"
 import { errorHandler } from "../../util/errorHandler.js"
 import { generateReceiptNumber } from "../../util/receiptHelper.js"
 import { sendDonationReceiptEmail } from "../../services/emailService.js"
+import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
 
 export const getDonorsForCampaign = async (req, res, next) => {
     const { campaignId } = req.params;
@@ -443,6 +444,15 @@ export const verifyOfflineDonation = async (req, res, next) => {
             isOfflineVerified: true
         }).catch(e => console.error("[AdminDonation] Error sending verified offline donation receipt:", e));
 
+        // Real-time SSE alert to admin dashboard & donations table
+        broadcastRealtimeEvent("donation:verified", {
+            donationId: verifiedResult.id,
+            amount: verifiedResult.amount,
+            receiptNumber: verifiedResult.receiptNumber,
+            donorName: [verifiedResult.firstName, verifiedResult.lastName].filter(Boolean).join(" ") || "Generous Donor",
+            campaignTitle: verifiedCampaignTitle
+        });
+
         res.status(httpStatus.OK).json({
             msg: "Offline donation verified successfully",
             donation: verifiedResult,
@@ -541,6 +551,16 @@ export const createDirectOfflineDonation = async (req, res, next) => {
             receiptNumber: donation.receiptNumber,
             isOfflineVerified: true
         }).catch(e => console.error("[AdminDonation] Error sending direct offline donation receipt:", e));
+
+        // Real-time SSE alert to admin dashboard & donations table
+        broadcastRealtimeEvent("donation:created", {
+            type: "direct_offline",
+            amount: donation.amount,
+            receiptNumber: donation.receiptNumber,
+            donorName: [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor",
+            campaignTitle: directCampaignTitle,
+            donationId: donation.id
+        });
 
         res.status(httpStatus.CREATED).json({
             msg: "Offline donation recorded successfully",

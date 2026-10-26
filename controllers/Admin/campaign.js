@@ -6,6 +6,7 @@ import uploadToCloudinary, { deleteFromCloudinary } from "../../util/cloudinary.
 import { errorHandler } from "../../util/errorHandler.js"
 import { pickLanguage } from "../../util/languageHelper.js"
 import { logError } from "../../util/logHelper.js"
+import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
 
 //!add-campaign
 export const addCampaign = async (req, res, next) =>{
@@ -64,6 +65,11 @@ export const addCampaign = async (req, res, next) =>{
                 category : true
             }
         })
+
+        broadcastRealtimeEvent("campaign:updated", {
+            action: "create",
+            campaignId: campaign.id
+        });
 
         res.status(httpStatus.CREATED).json({
             msg : "Campaign created successfully",
@@ -347,6 +353,11 @@ export const updateCampaign = async (req, res, next) =>{
             }
         })
 
+        broadcastRealtimeEvent("campaign:updated", {
+            action: "update",
+            campaignId
+        });
+
         res.status(httpStatus.OK).json({
             msg : "Campaign updated successfully"
         })
@@ -387,6 +398,12 @@ export const deleteCampaign = async (req, res, next) =>{
                 id : campaignId
             }
         })
+
+        broadcastRealtimeEvent("campaign:updated", {
+            action: "delete",
+            campaignId
+        });
+
         res.status(httpStatus.OK).json({
             msg : "Campaign deleted successfully"
         })
