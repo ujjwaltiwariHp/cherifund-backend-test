@@ -14,6 +14,7 @@ describe("Realtime SSE Service Unit Tests", () => {
         mockReq.user = { email: "admin@example.com", role: "admin" }
 
         mockRes = {
+            setHeader: jest.fn(),
             writeHead: jest.fn(),
             write: jest.fn(),
             end: jest.fn()
@@ -66,6 +67,7 @@ describe("Realtime SSE Service Unit Tests", () => {
 
     test("broadcastRealtimeEvent should safely drop broken client sockets", () => {
         const brokenRes = {
+            setHeader: jest.fn(),
             writeHead: jest.fn(),
             write: jest.fn()
                 .mockImplementationOnce(() => true)

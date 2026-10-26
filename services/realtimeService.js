@@ -15,6 +15,14 @@ const activeClients = new Set()
  */
 export const handleSseConnection = (req, res) => {
     // 1. Mandatory SSE headers for immediate flushing and Cloudflare/Nginx buffer bypass
+    const origin = req.headers?.origin;
+    if (origin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+    } else {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+
     res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
@@ -66,6 +74,7 @@ export const handleSseConnection = (req, res) => {
  * @param {Object} payload - Data payload sent to clients
  */
 export const broadcastRealtimeEvent = (eventName, payload = {}) => {
+    logInfo(`[RealtimeService] Broadcasting event '${eventName}' to ${activeClients.size} active SSE client(s)`)
     if (activeClients.size === 0) return
 
     const safePayload = {
