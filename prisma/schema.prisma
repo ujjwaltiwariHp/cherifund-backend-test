@@ -289,3 +289,19 @@ model GalleryImage {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+//! Notification Model for Admin System Notifications
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   // "donation", "inquiry", "campaign", "offline_verification"
+  title     String
+  message   String
+  metadata  Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isRead, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}

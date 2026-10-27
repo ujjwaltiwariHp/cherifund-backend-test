@@ -13,6 +13,8 @@ import adminDashboard from "./dashboard.js"
 import adminDonation from "./donation.js"
 import adminSponsor from "./sponsor.js"
 import adminGallery from "./gallery.js"
+import adminRealtime from "./realtime.js"
+import adminNotification from "./notification.js"
 
 const router = express.Router()
 
@@ -30,5 +32,7 @@ router.use("/dashboard", adminDashboard)
 router.use("/donation", adminDonation)
 router.use("/sponsor", adminSponsor)
 router.use("/gallery", adminGallery)
+router.use("/realtime", adminRealtime)
+router.use("/notification", adminNotification)
 
 export default router

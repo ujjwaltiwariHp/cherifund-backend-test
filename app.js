@@ -88,8 +88,11 @@ app.get("/swagger.json", noCache, swaggerAuth, (req, res) =>{
     res.send(swaggerDocument)
 })
 
-//! Auto-invalidate public home overview cache on successful Admin mutations
+//! Ensure all Admin API responses bypass browser/CDN caches for real-time live data
 app.use("/api/V1/admin", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
     res.on("finish", () => {
       if (res.statusCode >= 200 && res.statusCode < 300) {
