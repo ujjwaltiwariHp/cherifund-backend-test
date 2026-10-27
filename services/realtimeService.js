@@ -59,12 +59,21 @@ export const handleSseConnection = (req, res) => {
         heartbeatTimer.unref()
     }
 
-    // 5. Cleanup on client disconnection
-    req.on("close", () => {
+    // 5. Cleanup on client disconnection or stream socket errors
+    const cleanupClient = () => {
         clearInterval(heartbeatTimer)
         activeClients.delete(res)
         logInfo(`[RealtimeService] Admin client disconnected from SSE stream. Total active: ${activeClients.size}`)
-    })
+    }
+
+    req.on("close", cleanupClient)
+    if (typeof res.on === "function") {
+        res.on("close", cleanupClient)
+        res.on("error", (err) => {
+            logError("[RealtimeService] SSE client response stream error, cleaning up", err)
+            cleanupClient()
+        })
+    }
 }
 
 /**
@@ -86,7 +95,13 @@ export const broadcastRealtimeEvent = (eventName, payload = {}) => {
 
     for (const client of activeClients) {
         try {
-            client.write(sseMessage)
+            const isWritable = client.writable !== undefined ? client.writable : true
+            const isDestroyed = client.destroyed !== undefined ? client.destroyed : false
+            if (isWritable && !isDestroyed) {
+                client.write(sseMessage)
+            } else {
+                activeClients.delete(client)
+            }
         } catch (error) {
             logError("[RealtimeService] Failed to write event to client stream, dropping client", error)
             activeClients.delete(client)
