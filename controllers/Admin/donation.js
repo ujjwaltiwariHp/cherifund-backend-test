@@ -5,6 +5,7 @@ import { errorHandler } from "../../util/errorHandler.js"
 import { generateReceiptNumber } from "../../util/receiptHelper.js"
 import { sendDonationReceiptEmail } from "../../services/emailService.js"
 import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
+import { createNotification } from "../../services/notificationService.js"
 
 export const getDonorsForCampaign = async (req, res, next) => {
     const { campaignId } = req.params;
@@ -445,13 +446,28 @@ export const verifyOfflineDonation = async (req, res, next) => {
         }).catch(e => console.error("[AdminDonation] Error sending verified offline donation receipt:", e));
 
         // Real-time SSE alert to admin dashboard & donations table
+        const verifiedDonorName = [verifiedResult.firstName, verifiedResult.lastName].filter(Boolean).join(" ") || "Generous Donor";
         broadcastRealtimeEvent("donation:verified", {
             donationId: verifiedResult.id,
             amount: verifiedResult.amount,
             receiptNumber: verifiedResult.receiptNumber,
-            donorName: [verifiedResult.firstName, verifiedResult.lastName].filter(Boolean).join(" ") || "Generous Donor",
+            donorName: verifiedDonorName,
             campaignTitle: verifiedCampaignTitle
         });
+
+        createNotification({
+            type: "offline_verification",
+            title: "Offline Donation Verified",
+            message: `₹${Number(verifiedResult.amount).toLocaleString("en-IN")} verified for ${verifiedDonorName}`,
+            metadata: {
+                donationId: verifiedResult.id,
+                amount: verifiedResult.amount,
+                receiptNumber: verifiedResult.receiptNumber,
+                donorName: verifiedDonorName,
+                campaignTitle: verifiedCampaignTitle,
+                paymentMethod: "offline"
+            }
+        }).catch(e => console.error("[AdminDonation] Error saving notification:", e));
 
         res.status(httpStatus.OK).json({
             msg: "Offline donation verified successfully",
@@ -553,14 +569,29 @@ export const createDirectOfflineDonation = async (req, res, next) => {
         }).catch(e => console.error("[AdminDonation] Error sending direct offline donation receipt:", e));
 
         // Real-time SSE alert to admin dashboard & donations table
+        const directDonorName = [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor";
         broadcastRealtimeEvent("donation:created", {
             type: "direct_offline",
             amount: donation.amount,
             receiptNumber: donation.receiptNumber,
-            donorName: [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor",
+            donorName: directDonorName,
             campaignTitle: directCampaignTitle,
             donationId: donation.id
         });
+
+        createNotification({
+            type: "donation",
+            title: "Direct Offline Donation Recorded",
+            message: `₹${Number(donation.amount).toLocaleString("en-IN")} recorded for ${directDonorName}`,
+            metadata: {
+                donationId: donation.id,
+                amount: donation.amount,
+                receiptNumber: donation.receiptNumber,
+                donorName: directDonorName,
+                campaignTitle: directCampaignTitle,
+                paymentMethod: "offline"
+            }
+        }).catch(e => console.error("[AdminDonation] Error saving notification:", e));
 
         res.status(httpStatus.CREATED).json({
             msg: "Offline donation recorded successfully",

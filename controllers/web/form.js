@@ -5,6 +5,7 @@ import { errorHandler } from "../../util/errorHandler.js"
 import { logError } from "../../util/logHelper.js"
 import { sendContactFormEmails, sendVolunteerFormEmails } from "../../services/emailService.js"
 import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
+import { createNotification } from "../../services/notificationService.js"
 
 //! contact query
 export const contactQuery = async (req, res, next) =>{
@@ -40,6 +41,18 @@ export const contactQuery = async (req, res, next) =>{
             email,
             phone
         });
+
+        createNotification({
+            type: "inquiry",
+            title: "New Contact Inquiry",
+            message: `${name}: ${message?.length > 60 ? message.slice(0, 60) + "..." : message}`,
+            metadata: {
+                name,
+                email,
+                phone,
+                inquiryType: "contact"
+            }
+        }).catch(e => console.error("[Form] Error saving notification:", e));
 
         res.status(httpStatus.CREATED).json({
             msg : "Form submitted successfully",
@@ -150,12 +163,26 @@ export const becomeVolunteer = async (req, res, next) =>{
             .catch(e => console.error("[Form] Error sending volunteer form emails:", e));
 
         // Real-time SSE alert to admin dashboard & inquiries table
+        const volunteerName = `${firstName} ${lastName}`.trim();
         broadcastRealtimeEvent("inquiry:created", {
             type: "volunteer",
-            name: `${firstName} ${lastName}`.trim(),
+            name: volunteerName,
             email,
             phone
         });
+
+        createNotification({
+            type: "inquiry",
+            title: "New Volunteer Application",
+            message: `${volunteerName} applied to become a volunteer (${occupation || "Volunteer"})`,
+            metadata: {
+                name: volunteerName,
+                email,
+                phone,
+                occupation,
+                inquiryType: "volunteer"
+            }
+        }).catch(e => console.error("[Form] Error saving notification:", e));
 
         res.status(httpStatus.CREATED).json({
             msg : "Form submitted successfully",

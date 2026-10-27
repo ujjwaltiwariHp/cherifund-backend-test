@@ -14,6 +14,7 @@ import {
     sendAdminPledgeAlert
 } from "../../services/emailService.js"
 import { broadcastRealtimeEvent } from "../../services/realtimeService.js"
+import { createNotification } from "../../services/notificationService.js"
 
 //! create order
 export const createOrder = async (req, res, next) =>{
@@ -102,14 +103,29 @@ export const createOrder = async (req, res, next) =>{
             }).catch(e => console.error("[Payment] Error sending direct donation admin alert:", e));
 
             // Real-time SSE alert to admin dashboard & donations table
+            const directDonorName = [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor";
             broadcastRealtimeEvent("donation:created", {
                 type: "online",
                 amount: donation.amount,
                 receiptNumber,
-                donorName: [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor",
+                donorName: directDonorName,
                 campaignTitle: campaignTitle || "General Welfare Fund",
                 donationId: donation.id
             });
+
+            createNotification({
+                type: "donation",
+                title: "New Online Donation",
+                message: `₹${Number(donation.amount).toLocaleString("en-IN")} received from ${directDonorName}`,
+                metadata: {
+                    amount: donation.amount,
+                    donorName: directDonorName,
+                    receiptNumber,
+                    donationId: donation.id,
+                    campaignTitle: campaignTitle || "General Welfare Fund",
+                    paymentMethod: "online"
+                }
+            }).catch(e => console.error("[Payment] Error saving notification:", e));
 
             return res.status(httpStatus.CREATED).json(responseData);
         }
@@ -156,13 +172,27 @@ export const createOrder = async (req, res, next) =>{
             }).catch(e => console.error("[Payment] Error sending offline pledge admin alert:", e));
 
             // Real-time SSE alert to admin dashboard & donations table
+            const offlineDonorName = [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor";
             broadcastRealtimeEvent("donation:created", {
                 type: "offline",
                 amount: donation.amount,
-                donorName: [donation.firstName, donation.lastName].filter(Boolean).join(" ") || "Generous Donor",
+                donorName: offlineDonorName,
                 campaignTitle: campaignTitle || "General Welfare Fund",
                 donationId: donation.id
             });
+
+            createNotification({
+                type: "donation",
+                title: "New Offline Pledge",
+                message: `₹${Number(donation.amount).toLocaleString("en-IN")} pledged by ${offlineDonorName}`,
+                metadata: {
+                    amount: donation.amount,
+                    donorName: offlineDonorName,
+                    donationId: donation.id,
+                    campaignTitle: campaignTitle || "General Welfare Fund",
+                    paymentMethod: "offline"
+                }
+            }).catch(e => console.error("[Payment] Error saving notification:", e));
 
             return res.status(httpStatus.CREATED).json(responseData);
         }
@@ -462,6 +492,20 @@ export const verifySignature = async (req, res, next) =>{
                 campaignTitle,
                 donationId: updatedDonation.id
             });
+
+            createNotification({
+                type: "donation",
+                title: "New Online Donation",
+                message: `₹${Number(updatedDonation.amount).toLocaleString("en-IN")} received from ${donorName}`,
+                metadata: {
+                    amount: updatedDonation.amount,
+                    donorName,
+                    receiptNumber: updatedDonation.receiptNumber,
+                    donationId: updatedDonation.id,
+                    campaignTitle,
+                    paymentMethod: "online"
+                }
+            }).catch(e => console.error("[Payment] Error saving notification:", e));
 
             res.status(httpStatus.OK).json({
                 msg: "Payment verified",
