@@ -527,6 +527,91 @@ describe("Donation Admin APIs", () => {
       expect(res.body.message || res.body.msg).toContain("Only offline donations");
     });
 
+    it("should require a valid cheque number when payment mode is cheque", async () => {
+      prisma.donation.findUnique.mockResolvedValue({
+        id: "don-chq-missing",
+        amount: 2000,
+        status: "pending",
+        paymentMethod: "offline",
+      });
+
+      const res = await request(app)
+        .put("/api/V1/admin/donation/verify-offline/don-chq-missing")
+        .send({
+          amount: 2000,
+          paymentSubMethod: "cheque",
+          referenceNumber: "",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message || res.body.msg).toContain("Valid cheque number");
+    });
+
+    it("should format cheque reference number into message and parse comma-separated amount during offline verification", async () => {
+      prisma.donation.findUnique.mockResolvedValue({
+        id: "don-chq-valid",
+        amount: 5000,
+        status: "pending",
+        paymentMethod: "offline",
+        campaignId: "camp-100",
+        campaign: { id: "camp-100", title: "Education Fund" },
+        receiptNumber: null,
+      });
+
+      prisma.donation.count.mockResolvedValue(15);
+      prisma.donation.update.mockResolvedValue({
+        id: "don-chq-valid",
+        amount: 5000,
+        status: "paid",
+        paymentMethod: "offline",
+        receiptNumber: "YUWA-2026-0016-chq12345",
+        campaign: { id: "camp-100", title: "Education Fund" },
+      });
+
+      prisma.campaigns.update.mockResolvedValue({
+        id: "camp-100",
+        raisedAmount: 5000,
+        goalAmount: 10000,
+      });
+
+      const res = await request(app)
+        .put("/api/V1/admin/donation/verify-offline/don-chq-valid")
+        .send({
+          amount: "5,000",
+          paymentSubMethod: "cheque",
+          referenceNumber: "CHQ-88990",
+          notes: "Deposited in SBI Nangloi",
+        });
+
+      expect(res.status).toBe(200);
+      expect(prisma.donation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "don-chq-valid" },
+          data: expect.objectContaining({
+            status: "paid",
+            amount: 5000,
+            message: "[Cheque: CHQ-88990] Deposited in SBI Nangloi",
+          }),
+        })
+      );
+    });
+
+    it("should reject offline verification if amount is non-positive or invalid", async () => {
+      prisma.donation.findUnique.mockResolvedValue({
+        id: "don-inv-amt",
+        amount: 1000,
+        status: "pending",
+        paymentMethod: "offline",
+      });
+
+      const res = await request(app)
+        .put("/api/V1/admin/donation/verify-offline/don-inv-amt")
+        .send({ amount: -500 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message || res.body.msg).toContain("Invalid donation amount");
+    });
+
     it("should directly record offline donation from admin panel and generate receipt immediately", async () => {
       prisma.campaigns.findUnique.mockResolvedValue({ id: "camp-200" });
       prisma.donation.count.mockResolvedValue(12);
