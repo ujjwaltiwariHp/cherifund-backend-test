@@ -16,9 +16,9 @@ const getOrgInfo = () => ({
     website: "https://yuwaindia.org",
     email: "yuwaindia@gmail.com",
     headOffice: "H.No. RZC-13, KH. No. 72/23, 78/3, Nihal Vihar, Nangloi, New Delhi - 110041",
-    branchOffice: "393i, Rajiv Nagar, West Basharatpur, Gorakhpur (U.P.) - 273001",
+    branchOffice: "Behind Sankat Mochan Hanuman Mandir, Azad Nagar Colony East, Taramandal Road, Rustampur, Gorakhpur, Uttar Pradesh - 273001",
     delhiMapUrl: "https://www.google.com/maps/search/?api=1&query=Nihal+Vihar+Nangloi+New+Delhi+110041",
-    gorakhpurMapUrl: "https://www.google.com/maps/search/?api=1&query=393i+Rajiv+Nagar+West+Basharatpur+Gorakhpur+273001"
+    gorakhpurMapUrl: "https://www.google.com/maps/search/?api=1&query=Behind+Sankat+Mochan+Hanuman+Mandir+Azad+Nagar+Colony+East+Taramandal+Road+Rustampur+Gorakhpur+Uttar+Pradesh+273001"
 })
 
 const getAdminEmail = () => process.env.ADMIN_NOTIFICATION_EMAIL || "yuwaindia@gmail.com"

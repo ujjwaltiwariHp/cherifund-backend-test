@@ -370,15 +370,33 @@ export const verifyOfflineDonation = async (req, res, next) => {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Donation is already verified and confirmed" }));
         }
 
-        const confirmedAmount = amount !== undefined && amount !== null && amount !== ""
-            ? parseFloat(amount)
+        const rawAmount = amount !== undefined && amount !== null && amount !== ""
+            ? (typeof amount === "string" ? amount.replace(/,/g, "").trim() : amount)
             : existingDonation.amount;
+        const confirmedAmount = parseFloat(rawAmount);
 
         if (isNaN(confirmedAmount) || confirmedAmount <= 0) {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Invalid donation amount" }));
         }
 
+        const subMethod = req.body.paymentSubMethod ? String(req.body.paymentSubMethod).trim().toLowerCase() : null;
+        const refNo = req.body.referenceNumber ? String(req.body.referenceNumber).trim() : null;
+
+        if (subMethod === "cheque" && (!refNo || refNo.length < 3)) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Valid cheque number (at least 3 characters) is required when payment mode is Cheque" }));
+        }
+
         const verificationNotes = req.body.notes !== undefined ? req.body.notes : req.body.message;
+        let finalMessage = verificationNotes !== undefined ? verificationNotes : existingDonation.message;
+        if (refNo) {
+            const prefix = subMethod === "cheque" ? `[Cheque: ${refNo}]` : `[Ref: ${refNo}]`;
+            if (!finalMessage) {
+                finalMessage = prefix;
+            } else if (!finalMessage.includes(refNo)) {
+                finalMessage = `${prefix} ${finalMessage}`;
+            }
+        }
+
         const updatedPan = req.body.pan !== undefined
             ? (req.body.pan && typeof req.body.pan === "string" && req.body.pan.trim() ? req.body.pan.trim().toUpperCase() : null)
             : existingDonation.pan;
@@ -393,7 +411,7 @@ export const verifyOfflineDonation = async (req, res, next) => {
                     amount: confirmedAmount,
                     receiptNumber,
                     pan: updatedPan,
-                    message: verificationNotes !== undefined ? verificationNotes : existingDonation.message
+                    message: finalMessage
                 },
                 include: {
                     campaign: {
@@ -452,20 +470,24 @@ export const verifyOfflineDonation = async (req, res, next) => {
             amount: verifiedResult.amount,
             receiptNumber: verifiedResult.receiptNumber,
             donorName: verifiedDonorName,
-            campaignTitle: verifiedCampaignTitle
+            campaignTitle: verifiedCampaignTitle,
+            paymentSubMethod: subMethod || undefined,
+            referenceNumber: refNo || undefined,
         });
 
         createNotification({
             type: "offline_verification",
             title: "Offline Donation Verified",
-            message: `₹${Number(verifiedResult.amount).toLocaleString("en-IN")} verified for ${verifiedDonorName}`,
+            message: `₹${Number(verifiedResult.amount).toLocaleString("en-IN")} verified for ${verifiedDonorName}${refNo ? ` (${subMethod === "cheque" ? "Cheque #" : "Ref #"}${refNo})` : ""}`,
             metadata: {
                 donationId: verifiedResult.id,
                 amount: verifiedResult.amount,
                 receiptNumber: verifiedResult.receiptNumber,
                 donorName: verifiedDonorName,
                 campaignTitle: verifiedCampaignTitle,
-                paymentMethod: "offline"
+                paymentMethod: "offline",
+                paymentSubMethod: subMethod || undefined,
+                referenceNumber: refNo || undefined,
             }
         }).catch(e => console.error("[AdminDonation] Error saving notification:", e));
 
@@ -482,12 +504,30 @@ export const verifyOfflineDonation = async (req, res, next) => {
 };
 
 export const createDirectOfflineDonation = async (req, res, next) => {
-    const { amount, firstName, lastName, email, phone, address, pan, message, campaignId } = req.body;
+    const { amount, firstName, lastName, email, phone, address, pan, message, notes, paymentSubMethod, referenceNumber, campaignId } = req.body;
 
     try {
-        const parsedAmount = parseFloat(amount);
+        const rawAmount = typeof amount === "string" ? amount.replace(/,/g, "").trim() : amount;
+        const parsedAmount = parseFloat(rawAmount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
             return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Valid donation amount is required" }));
+        }
+
+        const subMethod = paymentSubMethod ? String(paymentSubMethod).trim().toLowerCase() : null;
+        const refNo = referenceNumber ? String(referenceNumber).trim() : null;
+
+        if (subMethod === "cheque" && (!refNo || refNo.length < 3)) {
+            return next(errorHandler({ status: httpStatus.BAD_REQUEST, message: "Valid cheque number (at least 3 characters) is required when payment mode is Cheque" }));
+        }
+
+        let combinedMessage = notes !== undefined ? notes : message;
+        if (refNo) {
+            const prefix = subMethod === "cheque" ? `[Cheque: ${refNo}]` : `[Ref: ${refNo}]`;
+            if (!combinedMessage) {
+                combinedMessage = prefix;
+            } else if (!combinedMessage.includes(refNo)) {
+                combinedMessage = `${prefix} ${combinedMessage}`;
+            }
         }
 
         const cleanPan = pan && typeof pan === "string" && pan.trim() !== ""
@@ -520,7 +560,7 @@ export const createDirectOfflineDonation = async (req, res, next) => {
                     phone,
                     address,
                     pan: cleanPan,
-                    message
+                    message: combinedMessage
                 },
                 include: {
                     campaign: {
@@ -576,20 +616,24 @@ export const createDirectOfflineDonation = async (req, res, next) => {
             receiptNumber: donation.receiptNumber,
             donorName: directDonorName,
             campaignTitle: directCampaignTitle,
-            donationId: donation.id
+            donationId: donation.id,
+            paymentSubMethod: subMethod || undefined,
+            referenceNumber: refNo || undefined,
         });
 
         createNotification({
             type: "donation",
             title: "Direct Offline Donation Recorded",
-            message: `₹${Number(donation.amount).toLocaleString("en-IN")} recorded for ${directDonorName}`,
+            message: `₹${Number(donation.amount).toLocaleString("en-IN")} recorded for ${directDonorName}${refNo ? ` (${subMethod === "cheque" ? "Cheque #" : "Ref #"}${refNo})` : ""}`,
             metadata: {
                 donationId: donation.id,
                 amount: donation.amount,
                 receiptNumber: donation.receiptNumber,
                 donorName: directDonorName,
                 campaignTitle: directCampaignTitle,
-                paymentMethod: "offline"
+                paymentMethod: "offline",
+                paymentSubMethod: subMethod || undefined,
+                referenceNumber: refNo || undefined,
             }
         }).catch(e => console.error("[AdminDonation] Error saving notification:", e));
 

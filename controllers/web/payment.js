@@ -540,7 +540,7 @@ export const verifySignature = async (req, res, next) =>{
                         website: "yuwaindia.org",
                         email: "yuwaindia@gmail.com",
                         headOffice: "H.No. RZC-13, KH. No. 72/23, 78/3, Nihal Vihar, Nangloi, New Delhi-110041",
-                        branchOffice: "393i, Rajiv Nagar, West Basharatpur, Gorakhpur (U.P.)-273001",
+                        branchOffice: "Behind Sankat Mochan Hanuman Mandir, Azad Nagar Colony East, Taramandal Road, Rustampur, Gorakhpur, Uttar Pradesh-273001",
                         taxExemptNote: "Donations are eligible for tax exemption under Section 80G of the Income Tax Act."
                     }
                 }
@@ -637,7 +637,7 @@ export const getReceiptDetails = async (req, res, next) => {
                     website: "yuwaindia.org",
                     email: "yuwaindia@gmail.com",
                     headOffice: "H.No. RZC-13, KH. No. 72/23, 78/3, Nihal Vihar, Nangloi, New Delhi-110041",
-                    branchOffice: "393i, Rajiv Nagar, West Basharatpur, Gorakhpur (U.P.)-273001",
+                    branchOffice: "Behind Sankat Mochan Hanuman Mandir, Azad Nagar Colony East, Taramandal Road, Rustampur, Gorakhpur, Uttar Pradesh-273001",
                     taxExemptNote: "Donations are eligible for tax exemption under Section 80G of the Income Tax Act."
                 }
             }

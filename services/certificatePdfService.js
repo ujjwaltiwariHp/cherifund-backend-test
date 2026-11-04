@@ -260,7 +260,7 @@ const generateFallbackCertificatePdf = (receiptPayload) => {
                    width: 510,
                    align: "center"
                })
-               .text("Branch Off.: 393i, Rajiv Nagar, West Basharatpur, Gorakhpur (U.P.)-273001", 185, 117, {
+               .text(`Branch Off.: ${org.branchAddress || "Behind Sankat Mochan Hanuman Mandir, Azad Nagar Colony East, Taramandal Road, Rustampur, Gorakhpur, Uttar Pradesh-273001"}`, 185, 117, {
                    width: 510,
                    align: "center"
                })
