@@ -148,16 +148,21 @@ export const getHomeOverview = async (req, res, next) => {
         altText: img.altText
       }));
 
-      const formattedTrainees = trainees.map((t) => ({
-        id: t.id,
-        name: pickLanguage(t.name, lang),
-        university: pickLanguage(t.university, lang),
-        domain: pickLanguage(t.domain, lang),
-        batch: t.batch,
-        testimonial: t.testimonial ? pickLanguage(t.testimonial, lang) : null,
-        image: t.imageUrl?.url || null,
-        linkedinUrl: t.linkedinUrl
-      }));
+      const formattedTrainees = trainees.map((t) => {
+        const imgUrl = t.imageUrl?.url || (typeof t.imageUrl === "string" ? t.imageUrl : null);
+        return {
+          id: t.id,
+          name: pickLanguage(t.name, lang),
+          university: pickLanguage(t.university, lang),
+          domain: pickLanguage(t.domain, lang),
+          batch: t.batch,
+          duration: t.duration || "3 Months",
+          testimonial: t.testimonial ? pickLanguage(t.testimonial, lang) : null,
+          image: imgUrl,
+          imageUrl: t.imageUrl,
+          linkedinUrl: t.linkedinUrl,
+        };
+      });
 
       return {
         banners: formattedBanners,

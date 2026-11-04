@@ -391,6 +391,7 @@ model TraineeAlumni {
   university      Json      // { en: "Gorakhpur University (DDU)", hi: "..." }
   domain          Json      // { en: "Web Development", hi: "वेब डेवलपमेंट" }
   batch           String    // e.g. "Batch 2025", "Summer 2024"
+  duration        String?   @default("3 Months") // e.g. "3 Months", "6 Months"
   testimonial     Json?     // Optional feedback quote
   linkedinUrl     String?
   displayOrder    Int       @default(0)
