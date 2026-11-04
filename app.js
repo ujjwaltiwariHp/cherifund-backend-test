@@ -57,6 +57,7 @@ app.use("/api/V1/web/form", writeLimiter)
 app.use("/api/V1/web/comment", writeLimiter)
 app.use("/api/V1/web/feedback", writeLimiter)
 app.use("/api/V1/web/payment/create-order", writeLimiter)
+app.use("/api/V1/web/career/apply", writeLimiter)
 app.post("/api/V1/payment/razorpay-webhook", express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;

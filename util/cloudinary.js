@@ -11,15 +11,22 @@ cloudinary.config({
     api_secret: process.env.cloudinary_api_secret
 })
 
-const uploadToCloudinary = async (filePath, folder, next) =>{
+const uploadToCloudinary = async (filePath, folder, next, extraOptions = {}) =>{
     if(!filePath) return next(errorHandler({
         message : "No file uploaded",
         status : httpStatus.BAD_REQUEST
     }))
 
     try {
-        const result = await cloudinary.uploader.upload(filePath, {folder})
-        fs.unlinkSync(filePath)
+        const uploadOptions = {
+            folder,
+            resource_type: extraOptions.resource_type || "auto",
+            ...extraOptions
+        }
+        const result = await cloudinary.uploader.upload(filePath, uploadOptions)
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath)
+        }
         return result
     } catch (error) {
         logError("cloudinary controller error", error)
@@ -28,12 +35,12 @@ const uploadToCloudinary = async (filePath, folder, next) =>{
 }
 
 //! for delete from cloudinary
-export const deleteFromCloudinary = async (publicId, next) =>{
+export const deleteFromCloudinary = async (publicId, next, resourceType = "image") =>{
     try {
-        await cloudinary.uploader.destroy(publicId)
+        await cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
     } catch (error) {
         logError("Cloudinary delete error", error)
-        next(error)
+        if (typeof next === "function") next(error)
     }
 }
 

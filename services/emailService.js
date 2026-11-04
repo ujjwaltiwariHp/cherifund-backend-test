@@ -614,3 +614,83 @@ export const sendNewsletterWelcomeEmail = async (email) => {
         logError("[EmailService] Error sending newsletter welcome email", error)
     }
 }
+
+/**
+ * Send email notifications for Internship Application (Applicant acknowledgement & Admin alert)
+ */
+export const sendInternshipApplicationEmails = async (application) => {
+    try {
+        const adminEmail = getAdminEmail()
+        const formattedDate = new Date(application.createdAt || Date.now()).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata"
+        })
+
+        // 1. Applicant Confirmation Email
+        if (application.email) {
+            const userContent = `
+              <h2 style="color: #00715D; margin-top: 0; font-size: 21px; font-weight: 700;">Internship Application Received!</h2>
+              <p>Dear <strong>${application.fullName}</strong>,</p>
+              <p>Thank you for applying for the <strong>${application.domain}</strong> internship at YUWA India. We have received your application successfully.</p>
+              
+              <div class="message-card" style="margin: 18px 0; border-left: 4px solid #00715D; background-color: #f8fafc; padding: 14px 18px;">
+                <strong style="color: #00715D; display: block; font-size: 15px; margin-bottom: 8px;">Application Summary:</strong>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                  <tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Application No:</td><td style="padding: 4px 0; font-weight: 700; color: #00715D;">${application.applicationNumber}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Domain / Role:</td><td style="padding: 4px 0; font-weight: 600;">${application.domain}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">College / University:</td><td style="padding: 4px 0;">${application.college}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Course & Year:</td><td style="padding: 4px 0;">${application.course} (${application.yearOfStudy})</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Preferred Duration:</td><td style="padding: 4px 0;">${application.duration} (${application.mode})</td></tr>
+                </table>
+              </div>
+
+              <p>Our talent acquisition and mentoring team is reviewing your profile and resume. If your profile matches our requirements, we will reach out to you via email or phone for an introductory interaction.</p>
+              <p style="font-size: 13px; color: #475569;">Best wishes for your career journey!<br><strong>Team YUWA India</strong></p>
+            `
+            const userHtml = emailLayout("Internship Application Received", userContent)
+            await sendMail(application.email, `Application Received: ${application.domain} Internship (${application.applicationNumber})`, userHtml)
+            logInfo(`[EmailService] Internship application acknowledgment sent to ${application.email}`)
+        }
+
+        // 2. Admin Alert Email
+        if (adminEmail) {
+            const adminContent = `
+              <h2 style="color: #00715D; margin-top: 0; font-size: 19px; font-weight: 700;">New Student Internship Application!</h2>
+              <table class="receipt-table">
+                <tr><td class="label">Application No:</td><td class="value"><strong style="color: #00715D;">${application.applicationNumber}</strong></td></tr>
+                <tr><td class="label">Candidate Name:</td><td class="value"><strong>${application.fullName}</strong></td></tr>
+                <tr><td class="label">Domain Applied:</td><td class="value"><strong style="color: #00715D;">${application.domain}</strong></td></tr>
+                <tr><td class="label">Email:</td><td class="value"><a href="mailto:${application.email}" style="color: #00715D;">${application.email}</a></td></tr>
+                <tr><td class="label">Mobile Phone:</td><td class="value"><a href="tel:${application.phone}" style="color: #00715D;">${application.phone}</a></td></tr>
+                <tr><td class="label">College / University:</td><td class="value">${application.college}</td></tr>
+                <tr><td class="label">Course & Passing:</td><td class="value">${application.course} (${application.yearOfStudy}, Passing: ${application.passingYear})</td></tr>
+                <tr><td class="label">Academic Scores:</td><td class="value">10th: ${application.tenthPercentage ?? "N/A"}% | 12th: ${application.twelfthPercentage ?? "N/A"}% | CGPA: ${application.currentCgpa ?? "N/A"}</td></tr>
+                <tr><td class="label">Location:</td><td class="value">${application.city}, ${application.state} - ${application.pincode}</td></tr>
+                <tr><td class="label">Duration & Mode:</td><td class="value">${application.duration} (${application.mode})</td></tr>
+                <tr><td class="label">Submission Date:</td><td class="value">${formattedDate} IST</td></tr>
+              </table>
+
+              ${application.whyJoin ? `
+                <h3 style="color: #00715D; font-size: 14px; margin: 16px 0 6px 0;">Statement / Why Join Yuwa:</h3>
+                <div class="message-card" style="font-size: 13px; line-height: 1.5;">${application.whyJoin}</div>
+              ` : ""}
+
+              <div style="margin-top: 24px; text-align: center; display: flex; gap: 12px; justify-content: center;">
+                ${application.resumeUrl ? `<a href="${application.resumeUrl}" class="map-btn" style="background-color: #00715D; color: #ffffff; padding: 10px 22px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;" target="_blank">📄 View Candidate Resume</a>` : ""}
+                <a href="https://yuwaindia.org/admin/career" class="map-btn" style="background-color: #1e293b; color: #ffffff; padding: 10px 22px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;" target="_blank">Open Admin Portal</a>
+              </div>
+            `
+            const adminHtml = emailLayout("New Internship Application", adminContent)
+            await sendMail(adminEmail, `[New Internship] ${application.fullName} - ${application.domain} (${application.college})`, adminHtml)
+            logInfo(`[EmailService] Internship application admin alert sent to ${adminEmail}`)
+        }
+    } catch (error) {
+        logError("[EmailService] Error processing internship application emails", error)
+    }
+}
+

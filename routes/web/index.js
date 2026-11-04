@@ -12,6 +12,7 @@ import eventRoute from "./event.js"
 import paymentRoute from "./payment.js"
 import sponsorRoute from "./sponsor.js"
 import galleryRoute from "./gallery.js"
+import careerRoute from "./career.js"
 
 
 import { getHomeOverview } from "../../controllers/web/homeOverview.js"
@@ -33,5 +34,6 @@ router.use("/event", eventRoute)
 router.use("/payment", paymentRoute)
 router.use("/sponsor", sponsorRoute)
 router.use("/gallery", galleryRoute)
+router.use("/career", careerRoute)
 
 export default router

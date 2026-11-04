@@ -15,6 +15,7 @@ import adminSponsor from "./sponsor.js"
 import adminGallery from "./gallery.js"
 import adminRealtime from "./realtime.js"
 import adminNotification from "./notification.js"
+import adminCareer from "./career.js"
 
 const router = express.Router()
 
@@ -34,5 +35,6 @@ router.use("/sponsor", adminSponsor)
 router.use("/gallery", adminGallery)
 router.use("/realtime", adminRealtime)
 router.use("/notification", adminNotification)
+router.use("/career", adminCareer)
 
 export default router
