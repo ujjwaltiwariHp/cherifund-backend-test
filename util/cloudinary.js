@@ -18,9 +18,20 @@ const uploadToCloudinary = async (filePath, folder, next, extraOptions = {}) =>{
     }))
 
     try {
+        const isDocument = extraOptions.resource_type === "raw" || 
+            filePath.toLowerCase().endsWith(".pdf") || 
+            filePath.toLowerCase().endsWith(".doc") || 
+            filePath.toLowerCase().endsWith(".docx");
+
         const uploadOptions = {
             folder,
-            resource_type: extraOptions.resource_type || "auto",
+            resource_type: extraOptions.resource_type || (isDocument ? "auto" : "image"),
+            ...(!isDocument ? {
+                transformation: [
+                    { width: 1000, height: 1000, crop: "limit" },
+                    { quality: "auto:good", fetch_format: "auto" }
+                ]
+            } : {}),
             ...extraOptions
         }
         const result = await cloudinary.uploader.upload(filePath, uploadOptions)

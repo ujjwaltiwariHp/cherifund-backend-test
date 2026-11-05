@@ -14,6 +14,7 @@ jest.mock("../swagger/swagger.js", () => ({
 // Mock Email Service
 jest.mock("../services/emailService.js", () => ({
   sendInternshipApplicationEmails: jest.fn().mockResolvedValue(true),
+  sendApplicationStatusUpdateEmail: jest.fn().mockResolvedValue(true),
   sendDonationReceiptEmail: jest.fn().mockResolvedValue(true),
   sendOfflineDonationPledgeEmail: jest.fn().mockResolvedValue(true),
   sendNewsletterWelcomeEmail: jest.fn().mockResolvedValue(true),

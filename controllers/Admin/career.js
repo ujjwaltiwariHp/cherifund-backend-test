@@ -6,6 +6,7 @@ import { errorHandler } from "../../util/errorHandler.js";
 import { logError, logInfo } from "../../util/logHelper.js";
 import { invalidateCachePrefix } from "../../util/cacheHelper.js";
 import { broadcastRealtimeEvent } from "../../services/realtimeService.js";
+import { sendApplicationStatusUpdateEmail } from "../../services/emailService.js";
 
 /* =========================================================
    INTERNSHIP APPLICATIONS (ADMIN)
@@ -177,6 +178,13 @@ export const updateApplicationStatus = async (req, res, next) => {
       status,
       application: updated,
     });
+
+    // Notify candidate via email regarding the new status
+    if (status && status !== existing.status) {
+      sendApplicationStatusUpdateEmail(updated, status, adminRemarks || updated.adminRemarks).catch((err) => {
+        logError("Background candidate status update email failed", err);
+      });
+    }
 
     return res.status(httpStatus.OK).json({
       success: true,

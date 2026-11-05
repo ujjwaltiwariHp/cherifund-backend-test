@@ -694,3 +694,94 @@ export const sendInternshipApplicationEmails = async (application) => {
     }
 }
 
+/**
+ * Send candidate email notification on application status update
+ */
+export const sendApplicationStatusUpdateEmail = async (application, newStatus, adminRemarks = "") => {
+    try {
+        if (!application || !application.email) return
+
+        const statusUpper = (newStatus || "").toUpperCase()
+        let subject = ""
+        let statusTitle = ""
+        let badgeColor = "#00715D"
+        let statusMessage = ""
+
+        switch (statusUpper) {
+            case "REVIEWING":
+                subject = `Application Under Review: ${application.domain} Internship (${application.applicationNumber})`
+                statusTitle = "Application Under Review"
+                badgeColor = "#d97706" // Amber
+                statusMessage = "We are pleased to inform you that your internship application is currently under active review by our academic and mentoring team. We are evaluating your background and skills for the chosen domain."
+                break
+            case "SHORTLISTED":
+                subject = `Congratulations! You are Shortlisted for ${application.domain} Internship (${application.applicationNumber})`
+                statusTitle = "Application Shortlisted!"
+                badgeColor = "#2563eb" // Blue
+                statusMessage = "Congratulations! Your profile has been shortlisted for the next stage of our selection process. Our program coordinator will reach out to you shortly via phone or email for an introductory technical discussion."
+                break
+            case "INTERVIEWED":
+                subject = `Interview Completed: ${application.domain} Internship (${application.applicationNumber})`
+                statusTitle = "Interview Completed"
+                badgeColor = "#7c3aed" // Purple
+                statusMessage = "Thank you for participating in the interview interaction with our team. Your responses have been documented and are under final evaluation. We will notify you of the outcome soon."
+                break
+            case "SELECTED":
+                subject = `Congratulations! You are Selected for ${application.domain} Internship at YUWA India (${application.applicationNumber})`
+                statusTitle = "Congratulations! You are Selected"
+                badgeColor = "#059669" // Emerald green
+                statusMessage = "We are thrilled to extend an offer for you to join the YUWA India Internship Program! Welcome to our changemaker community. You will receive an official onboarding kit and commencement schedule shortly."
+                break
+            case "REJECTED":
+                subject = `Update on Your Internship Application (${application.applicationNumber})`
+                statusTitle = "Application Status Update"
+                badgeColor = "#dc2626" // Red
+                statusMessage = "Thank you for taking the time to apply for an internship with YUWA India. Due to a very high volume of applications and limited seats for this cohort, we are unable to offer you an internship position at this time. We sincerely appreciate your interest and encourage you to apply for future opportunities."
+                break
+            default:
+                subject = `Status Update on Your Internship Application (${application.applicationNumber})`
+                statusTitle = `Status Updated: ${newStatus}`
+                badgeColor = "#00715D"
+                statusMessage = `Your internship application status has been updated to "${newStatus}".`
+        }
+
+        const candidateContent = `
+          <div style="text-align: center; margin-bottom: 24px;">
+            <span style="display: inline-block; background-color: ${badgeColor}; color: #ffffff; padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase;">
+              ${statusTitle}
+            </span>
+          </div>
+
+          <p>Dear <strong>${application.fullName}</strong>,</p>
+          <p>${statusMessage}</p>
+
+          <div class="message-card" style="margin: 20px 0; border-left: 4px solid ${badgeColor}; background-color: #f8fafc; padding: 14px 18px;">
+            <strong style="color: #00715D; display: block; font-size: 14px; margin-bottom: 8px;">Application Information:</strong>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Application No:</td><td style="padding: 4px 0; font-weight: 700; color: #00715D;">${application.applicationNumber}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Domain:</td><td style="padding: 4px 0; font-weight: 600;">${application.domain}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">University / College:</td><td style="padding: 4px 0;">${application.college}</td></tr>
+              <tr><td style="padding: 4px 0; color: #64748b;">Current Status:</td><td style="padding: 4px 0; font-weight: 700; color: ${badgeColor};">${statusUpper}</td></tr>
+            </table>
+          </div>
+
+          ${adminRemarks && adminRemarks.trim() ? `
+            <div style="background-color: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 14px 18px; margin: 18px 0;">
+              <strong style="color: #854d0e; font-size: 13px; display: block; margin-bottom: 4px;">Note from Admissions / Mentors:</strong>
+              <p style="margin: 0; font-size: 13px; color: #713f12; line-height: 1.5;">${adminRemarks.trim()}</p>
+            </div>
+          ` : ""}
+
+          <p style="font-size: 13px; color: #64748b; margin-top: 24px;">If you have any questions regarding your application, feel free to reply directly to this email or reach our office helpline at <strong>+91 9450886855</strong>.</p>
+          <p style="font-size: 13px; color: #475569;">Warm regards,<br><strong>YUWA India Internship & Talent Team</strong></p>
+        `
+
+        const html = emailLayout(statusTitle, candidateContent)
+        await sendMail(application.email, subject, html)
+        logInfo(`[EmailService] Status update email (${statusUpper}) sent successfully to ${application.email}`)
+    } catch (error) {
+        logError("[EmailService] Error sending application status update email", error)
+    }
+}
+
+
