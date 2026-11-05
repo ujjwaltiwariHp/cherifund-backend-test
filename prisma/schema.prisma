@@ -334,11 +334,15 @@ model InternshipApplication {
   gender              String?           // Male, Female, Other
   
   // Academic Background
+  highestQualification String?          // e.g. 10th, 12th, Diploma, Bachelor's, Master's, Doctorate/Ph.D
   college             String            // University or College Name
-  course              String            // Degree e.g. B.Tech, BCA, MCA, MBA, B.Sc
-  branch              String?           // Specialization e.g. CSE, IT, Social Sciences
-  yearOfStudy         String            // 1st Year, 2nd Year, 3rd Year, 4th Year, Graduated
+  course              String?           // Degree e.g. B.Tech, BCA, MCA, MBA, B.Sc
+  specialization      String?           // Specialization / Branch e.g. CSE, IT, Social Work
+  branch              String?           // Alias for backward compatibility
+  yearOfStudy         String?           @default("Ongoing") // 1st Year, 2nd Year, 3rd Year, 4th Year, Graduated
   passingYear         Int               // e.g. 2024, 2025, 2026, 2027
+  scoreType           String?           @default("PERCENTAGE") // "CGPA" or "PERCENTAGE"
+  score               Float?            // Strictly 0.0-10.0 for CGPA, 0.0-100.0 for Percentage
   tenthPercentage     Float?            // Percentage or CGPA
   twelfthPercentage   Float?            // 12th / Diploma percentage
   currentCgpa         Float?            // Ongoing CGPA / percentage

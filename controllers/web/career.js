@@ -3,6 +3,7 @@ import { prisma } from "../../database/db.js";
 import { careerError } from "../../errors/career.js";
 import { createNotification } from "../../services/notificationService.js";
 import { sendInternshipApplicationEmails } from "../../services/emailService.js";
+import { broadcastRealtimeEvent } from "../../services/realtimeService.js";
 import uploadToCloudinary from "../../util/cloudinary.js";
 import { errorHandler } from "../../util/errorHandler.js";
 import { logError, logInfo } from "../../util/logHelper.js";
@@ -34,11 +35,15 @@ export const applyForInternship = async (req, res, next) => {
       phone,
       whatsappNumber,
       gender,
+      highestQualification,
       college,
       course,
+      specialization,
       branch,
       yearOfStudy,
       passingYear,
+      scoreType,
+      score,
       tenthPercentage,
       twelfthPercentage,
       currentCgpa,
@@ -76,7 +81,11 @@ export const applyForInternship = async (req, res, next) => {
       return next(errorHandler(careerError.College_Required));
     }
 
-    if (!course || typeof course !== "string" || course.trim().length < 2) {
+    const resolvedCourse = (course && course.trim().length >= 2)
+      ? course.trim()
+      : (highestQualification && highestQualification.trim().length >= 2 ? highestQualification.trim() : "Degree");
+
+    if (!resolvedCourse || resolvedCourse.length < 2) {
       return next(errorHandler(careerError.Course_Required));
     }
 
@@ -90,6 +99,21 @@ export const applyForInternship = async (req, res, next) => {
 
     // 2. Numeric parsing & sanity validations
     const parsedPassingYear = passingYear ? parseInt(passingYear, 10) : new Date().getFullYear();
+    const cleanScoreType = (scoreType || "PERCENTAGE").toUpperCase();
+    const parsedScore = score !== undefined && score !== "" && score !== null ? parseFloat(score) : null;
+
+    if (parsedScore !== null) {
+      if (isNaN(parsedScore) || parsedScore < 0) {
+        return next(errorHandler({ message: "Marks score must be a non-negative number", status: httpStatus.BAD_REQUEST }));
+      }
+      if (cleanScoreType === "CGPA" && parsedScore > 10) {
+        return next(errorHandler({ message: "CGPA score cannot be greater than 10.0", status: httpStatus.BAD_REQUEST }));
+      }
+      if (cleanScoreType === "PERCENTAGE" && parsedScore > 100) {
+        return next(errorHandler({ message: "Percentage score cannot exceed 100%", status: httpStatus.BAD_REQUEST }));
+      }
+    }
+
     const parsed10th = tenthPercentage !== undefined && tenthPercentage !== "" ? parseFloat(tenthPercentage) : null;
     const parsed12th = twelfthPercentage !== undefined && twelfthPercentage !== "" ? parseFloat(twelfthPercentage) : null;
     const parsedCgpa = currentCgpa !== undefined && currentCgpa !== "" ? parseFloat(currentCgpa) : null;
@@ -139,14 +163,18 @@ export const applyForInternship = async (req, res, next) => {
         phone: normalizedPhone,
         whatsappNumber: whatsappNumber ? whatsappNumber.trim() : null,
         gender: gender ? gender.trim() : null,
+        highestQualification: highestQualification ? highestQualification.trim() : null,
         college: college.trim(),
-        course: course.trim(),
-        branch: branch ? branch.trim() : null,
+        course: resolvedCourse,
+        specialization: specialization ? specialization.trim() : (branch ? branch.trim() : null),
+        branch: branch ? branch.trim() : (specialization ? specialization.trim() : null),
         yearOfStudy: yearOfStudy ? yearOfStudy.trim() : "Ongoing",
         passingYear: parsedPassingYear,
+        scoreType: cleanScoreType,
+        score: parsedScore,
         tenthPercentage: parsed10th,
         twelfthPercentage: parsed12th,
-        currentCgpa: parsedCgpa,
+        currentCgpa: parsedCgpa || (cleanScoreType === "CGPA" ? parsedScore : null),
         domain: domain.trim(),
         duration: duration ? duration.trim() : "3 Months",
         mode: mode && ["REMOTE", "HYBRID", "ON_SITE"].includes(mode) ? mode : "HYBRID",
@@ -169,8 +197,13 @@ export const applyForInternship = async (req, res, next) => {
 
     logInfo(`[Career] New internship application created: ${application.applicationNumber} by ${application.fullName}`);
 
-    // 6. Broadcast Real-time In-App Notification to Admins
+    // 6. Broadcast Real-time In-App Notification and SSE event to Admins
     try {
+      broadcastRealtimeEvent("career:application", {
+        action: "create",
+        application,
+      });
+
       await createNotification({
         type: "internship_application",
         title: "New Internship Application",

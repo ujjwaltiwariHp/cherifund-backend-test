@@ -5,6 +5,7 @@ import uploadToCloudinary, { deleteFromCloudinary } from "../../util/cloudinary.
 import { errorHandler } from "../../util/errorHandler.js";
 import { logError, logInfo } from "../../util/logHelper.js";
 import { invalidateCachePrefix } from "../../util/cacheHelper.js";
+import { broadcastRealtimeEvent } from "../../services/realtimeService.js";
 
 /* =========================================================
    INTERNSHIP APPLICATIONS (ADMIN)
@@ -170,6 +171,13 @@ export const updateApplicationStatus = async (req, res, next) => {
 
     logInfo(`[Career] Application ${existing.applicationNumber} status updated to ${status}`);
 
+    broadcastRealtimeEvent("career:application", {
+      action: "status_update",
+      id,
+      status,
+      application: updated,
+    });
+
     return res.status(httpStatus.OK).json({
       success: true,
       message: "Application status updated successfully",
@@ -201,6 +209,11 @@ export const deleteApplication = async (req, res, next) => {
 
     await prisma.internshipApplication.delete({
       where: { id },
+    });
+
+    broadcastRealtimeEvent("career:application", {
+      action: "delete",
+      id,
     });
 
     return res.status(httpStatus.OK).json({
@@ -309,6 +322,11 @@ export const addTrainee = async (req, res, next) => {
     logInfo(`[Career] Added trainee alumni: ${nameObj.en || nameObj.hi}`);
     invalidateCachePrefix("home:overview");
 
+    broadcastRealtimeEvent("trainee:updated", {
+      action: "create",
+      trainee,
+    });
+
     return res.status(httpStatus.CREATED).json({
       success: true,
       message: "Trainee added successfully",
@@ -377,6 +395,11 @@ export const updateTrainee = async (req, res, next) => {
 
     invalidateCachePrefix("home:overview");
 
+    broadcastRealtimeEvent("trainee:updated", {
+      action: "update",
+      trainee: updated,
+    });
+
     return res.status(httpStatus.OK).json({
       success: true,
       message: "Trainee updated successfully",
@@ -408,6 +431,11 @@ export const toggleTraineeStatus = async (req, res, next) => {
     });
 
     invalidateCachePrefix("home:overview");
+
+    broadcastRealtimeEvent("trainee:updated", {
+      action: "toggle",
+      trainee: updated,
+    });
 
     return res.status(httpStatus.OK).json({
       success: true,
@@ -443,6 +471,11 @@ export const deleteTrainee = async (req, res, next) => {
     });
 
     invalidateCachePrefix("home:overview");
+
+    broadcastRealtimeEvent("trainee:updated", {
+      action: "delete",
+      id,
+    });
 
     return res.status(httpStatus.OK).json({
       success: true,

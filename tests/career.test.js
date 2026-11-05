@@ -249,6 +249,84 @@ describe("Career & Internship Module Tests", () => {
       expect(res.body.application.applicationNumber).toBe("YUWA-INT-2026-F89A");
       expect(prisma.internshipApplication.create).toHaveBeenCalled();
     });
+
+    it("POST /api/V1/web/career/apply should reject if CGPA exceeds 10.0", async () => {
+      mockResumeFile = {
+        path: "/tmp/sample-resume.pdf",
+        originalname: "sample-resume.pdf",
+        mimetype: "application/pdf",
+        size: 1024 * 100,
+      };
+
+      const res = await request(app)
+        .post("/api/V1/web/career/apply")
+        .set("x-bench-key", "yuwa-test-2026")
+        .send({
+          fullName: "Rahul Kumar",
+          email: "rahul@gmail.com",
+          phone: "9876543210",
+          college: "MMMUT Gorakhpur",
+          highestQualification: "Bachelor's Degree",
+          domain: "Web Development",
+          scoreType: "CGPA",
+          score: "11.5",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("CGPA score cannot be greater than 10.0");
+    });
+
+    it("POST /api/V1/web/career/apply should reject if percentage exceeds 100%", async () => {
+      mockResumeFile = {
+        path: "/tmp/sample-resume.pdf",
+        originalname: "sample-resume.pdf",
+        mimetype: "application/pdf",
+        size: 1024 * 100,
+      };
+
+      const res = await request(app)
+        .post("/api/V1/web/career/apply")
+        .set("x-bench-key", "yuwa-test-2026")
+        .send({
+          fullName: "Rahul Kumar",
+          email: "rahul@gmail.com",
+          phone: "9876543210",
+          college: "MMMUT Gorakhpur",
+          highestQualification: "Bachelor's Degree",
+          domain: "Web Development",
+          scoreType: "PERCENTAGE",
+          score: "105",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("Percentage score cannot exceed 100%");
+    });
+
+    it("POST /api/V1/web/career/apply should reject if score is negative", async () => {
+      mockResumeFile = {
+        path: "/tmp/sample-resume.pdf",
+        originalname: "sample-resume.pdf",
+        mimetype: "application/pdf",
+        size: 1024 * 100,
+      };
+
+      const res = await request(app)
+        .post("/api/V1/web/career/apply")
+        .set("x-bench-key", "yuwa-test-2026")
+        .send({
+          fullName: "Rahul Kumar",
+          email: "rahul@gmail.com",
+          phone: "9876543210",
+          college: "MMMUT Gorakhpur",
+          highestQualification: "Bachelor's Degree",
+          domain: "Web Development",
+          scoreType: "CGPA",
+          score: "-2",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("Marks score must be a non-negative number");
+    });
   });
 
   describe("Admin Career Endpoints", () => {
