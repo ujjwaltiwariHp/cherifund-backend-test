@@ -16,7 +16,7 @@ export const getHomeOverview = async (req, res, next) => {
   try {
     const overviewData = await getOrSetCache(cacheKey, 300, async () => {
       // Execute read queries concurrently using connection pool
-      const [banners, campaigns, sponsors, feedbacks, blogs, members, gallery] = await Promise.all([
+      const [banners, campaigns, sponsors, feedbacks, blogs, members, gallery, trainees] = await Promise.all([
         // 1. Banners
         prisma.banner.findMany({
           where: { pageName: "Home" },
@@ -59,6 +59,12 @@ export const getHomeOverview = async (req, res, next) => {
         // 7. Gallery Images
         prisma.galleryImage.findMany({
           orderBy: { createdAt: "desc" }
+        }),
+
+        // 8. Trainee Alumni (Active, ordered)
+        prisma.traineeAlumni.findMany({
+          where: { isActive: true },
+          orderBy: [{ displayOrder: "asc" }, { createdAt: "desc" }]
         })
       ]);
 
@@ -142,6 +148,22 @@ export const getHomeOverview = async (req, res, next) => {
         altText: img.altText
       }));
 
+      const formattedTrainees = trainees.map((t) => {
+        const imgUrl = t.imageUrl?.url || (typeof t.imageUrl === "string" ? t.imageUrl : null);
+        return {
+          id: t.id,
+          name: pickLanguage(t.name, lang),
+          university: pickLanguage(t.university, lang),
+          domain: pickLanguage(t.domain, lang),
+          batch: t.batch,
+          duration: t.duration || "3 Months",
+          testimonial: t.testimonial ? pickLanguage(t.testimonial, lang) : null,
+          image: imgUrl,
+          imageUrl: t.imageUrl,
+          linkedinUrl: t.linkedinUrl,
+        };
+      });
+
       return {
         banners: formattedBanners,
         campaigns: formattedCampaigns,
@@ -149,7 +171,8 @@ export const getHomeOverview = async (req, res, next) => {
         feedbacks: formattedFeedbacks,
         blogs: formattedBlogs,
         members: formattedMembers,
-        gallery: formattedGallery
+        gallery: formattedGallery,
+        trainees: formattedTrainees
       };
     });
 

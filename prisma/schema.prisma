@@ -305,3 +305,106 @@ model Notification {
   @@index([type, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
 }
+
+//! Internship Status Enum
+enum InternshipStatus {
+  PENDING
+  REVIEWING
+  SHORTLISTED
+  INTERVIEWED
+  SELECTED
+  REJECTED
+}
+
+//! Internship Mode Enum
+enum InternshipMode {
+  REMOTE
+  HYBRID
+  ON_SITE
+}
+
+//! Internship Application Model
+model InternshipApplication {
+  id                  String            @id @default(uuid())
+  applicationNumber   String            @unique // e.g. YUWA-INT-2026-XXXX
+  fullName            String
+  email               String
+  phone               String            // Indian standard 10-digit number
+  whatsappNumber      String?
+  gender              String?           // Male, Female, Other
+  
+  // Academic Background
+  highestQualification String?          // e.g. 10th, 12th, Diploma, Bachelor's, Master's, Doctorate/Ph.D
+  college             String            // University or College Name
+  course              String?           // Degree e.g. B.Tech, BCA, MCA, MBA, B.Sc
+  specialization      String?           // Specialization / Branch e.g. CSE, IT, Social Work
+  branch              String?           // Alias for backward compatibility
+  yearOfStudy         String?           @default("Ongoing") // 1st Year, 2nd Year, 3rd Year, 4th Year, Graduated
+  passingYear         Int               // e.g. 2024, 2025, 2026, 2027
+  scoreType           String?           @default("PERCENTAGE") // "CGPA" or "PERCENTAGE"
+  score               Float?            // Strictly 0.0-10.0 for CGPA, 0.0-100.0 for Percentage
+  tenthPercentage     Float?            // Percentage or CGPA
+  twelfthPercentage   Float?            // 12th / Diploma percentage
+  currentCgpa         Float?            // Ongoing CGPA / percentage
+  
+  // Internship Preferences
+  domain              String            // Web Dev, Social Work, UI/UX, Content, Marketing, etc.
+  duration            String            // 1 Month, 2 Months, 3 Months, 6 Months
+  mode                InternshipMode    @default(HYBRID)
+  
+  // Location
+  address             String?           @db.Text
+  city                String
+  state               String
+  pincode             String            // 6-digit PIN
+  
+  // Resume & Links
+  resumeUrl           String            // Secure Cloudinary / Storage URL
+  resumePublicId      String?
+  resumeOriginalName  String?
+  resumeMimeType      String?
+  resumeSize          Int?              // in bytes
+  linkedinUrl         String?
+  githubUrl           String?
+  portfolioUrl        String?
+  whyJoin             String?           @db.Text // Statement of Purpose / Cover note
+  
+  // Admin Workflow
+  status              InternshipStatus  @default(PENDING)
+  adminRemarks        String?           @db.Text
+  isViewed            Boolean           @default(false)
+  isArchived          Boolean           @default(false)
+  ipAddress           String?
+  
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([domain, status])
+  @@index([email])
+  @@index([phone])
+  @@index([applicationNumber])
+  @@index([createdAt(sort: Desc)])
+}
+
+//! Trainee Alumni Model (Scrolling showcase on Main page & Career page)
+model TraineeAlumni {
+  id              String    @id @default(uuid())
+  name            Json      // { en: "Rahul Sharma", hi: "राहुल शर्मा" }
+  imageUrl        Json      // { url: String, public_id: String }
+  university      Json      // { en: "Gorakhpur University (DDU)", hi: "..." }
+  domain          Json      // { en: "Web Development", hi: "वेब डेवलपमेंट" }
+  batch           String    // e.g. "Batch 2025", "Summer 2024"
+  duration        String?   @default("3 Months") // e.g. "3 Months", "6 Months"
+  testimonial     Json?     // Optional feedback quote
+  linkedinUrl     String?
+  displayOrder    Int       @default(0)
+  isActive        Boolean   @default(true)
+  isFeatured      Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive, displayOrder])
+  @@index([createdAt(sort: Desc)])
+}
