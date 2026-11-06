@@ -3,6 +3,7 @@ import { prisma } from "../../database/db.js"
 import { feedbackError } from "../../errors/feedback.js"
 import { errorHandler } from "../../util/errorHandler.js"
 import { logError } from "../../util/logHelper.js"
+import { invalidateCachePrefix } from "../../util/cacheHelper.js"
 
 //! get all feedback for admin
 export const getAllFeedback = async (req, res, next) =>{
@@ -131,6 +132,8 @@ export const moderateFeedback = async (req, res, next) =>{
             data : {status}
         })
 
+        await invalidateCachePrefix("home:overview");
+
         res.status(httpStatus.OK).json({
             msg : approved ? "Feedback approved" : "Feedback rejected"
         })
@@ -157,6 +160,8 @@ export const deleteFeedback = async (req, res, next) =>{
                 id : feedbackId
             }
         })
+
+        await invalidateCachePrefix("home:overview");
 
         res.status(httpStatus.OK).json({
             msg : "Feedback deleted successfully"

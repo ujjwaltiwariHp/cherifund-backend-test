@@ -14,7 +14,7 @@ export const getHomeOverview = async (req, res, next) => {
   const cacheKey = `home:overview:${lang}`;
 
   try {
-    const overviewData = await getOrSetCache(cacheKey, 300, async () => {
+    const overviewData = await getOrSetCache(cacheKey, 30, async () => {
       // Execute read queries concurrently using connection pool
       const [banners, campaigns, sponsors, feedbacks, blogs, members, gallery, trainees] = await Promise.all([
         // 1. Banners
