@@ -631,6 +631,8 @@ export const sendInternshipApplicationEmails = async (application) => {
             timeZone: "Asia/Kolkata"
         })
 
+        const typeLabel = application.applicantType === "WORKING_PROFESSIONAL" ? "Working Professional" : "Student / Fresh Graduate"
+
         // 1. Applicant Confirmation Email
         if (application.email) {
             const userContent = `
@@ -642,15 +644,16 @@ export const sendInternshipApplicationEmails = async (application) => {
                 <strong style="color: #00715D; display: block; font-size: 15px; margin-bottom: 8px;">Application Summary:</strong>
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                   <tr><td style="padding: 4px 0; color: #64748b; width: 140px;">Application No:</td><td style="padding: 4px 0; font-weight: 700; color: #00715D;">${application.applicationNumber}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Applicant Type:</td><td style="padding: 4px 0; font-weight: 600;">${typeLabel}</td></tr>
                   <tr><td style="padding: 4px 0; color: #64748b;">Domain / Role:</td><td style="padding: 4px 0; font-weight: 600;">${application.domain}</td></tr>
-                  <tr><td style="padding: 4px 0; color: #64748b;">College / University:</td><td style="padding: 4px 0;">${application.college}</td></tr>
-                  <tr><td style="padding: 4px 0; color: #64748b;">Course & Year:</td><td style="padding: 4px 0;">${application.course} (${application.yearOfStudy})</td></tr>
-                  <tr><td style="padding: 4px 0; color: #64748b;">Preferred Duration:</td><td style="padding: 4px 0;">${application.duration} (${application.mode})</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Qualification:</td><td style="padding: 4px 0;">${application.highestQualification || application.course || "N/A"}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Institution / Company:</td><td style="padding: 4px 0;">${application.currentOrganization || application.college || "N/A"}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #64748b;">Commitment:</td><td style="padding: 4px 0;">${application.weeksAvailable || application.duration || "N/A"}</td></tr>
                 </table>
               </div>
 
-              <p>Our talent acquisition and mentoring team is reviewing your profile and resume. If your profile matches our requirements, we will reach out to you via email or phone for an introductory interaction.</p>
-              <p style="font-size: 13px; color: #475569;">Best wishes for your career journey!<br><strong>Team YUWA India</strong></p>
+              <p>Our admissions and mentoring team is reviewing your profile. If your background matches our cohort requirements, we will reach out to you via email or phone for an introductory interaction.</p>
+              <p style="font-size: 13px; color: #475569;">Best wishes for your journey!<br><strong>Team YUWA India</strong></p>
             `
             const userHtml = emailLayout("Internship Application Received", userContent)
             await sendMail(application.email, `Application Received: ${application.domain} Internship (${application.applicationNumber})`, userHtml)
@@ -660,23 +663,29 @@ export const sendInternshipApplicationEmails = async (application) => {
         // 2. Admin Alert Email
         if (adminEmail) {
             const adminContent = `
-              <h2 style="color: #00715D; margin-top: 0; font-size: 19px; font-weight: 700;">New Student Internship Application!</h2>
+              <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 16px;">
+                ${application.photoUrl ? `<img src="${application.photoUrl}" alt="Photo" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid #00715D;" />` : ""}
+                <div>
+                  <h2 style="color: #00715D; margin: 0; font-size: 19px; font-weight: 700;">New ${typeLabel} Application!</h2>
+                  <span style="font-size: 12px; color: #64748b;">Application #${application.applicationNumber}</span>
+                </div>
+              </div>
               <table class="receipt-table">
-                <tr><td class="label">Application No:</td><td class="value"><strong style="color: #00715D;">${application.applicationNumber}</strong></td></tr>
                 <tr><td class="label">Candidate Name:</td><td class="value"><strong>${application.fullName}</strong></td></tr>
+                <tr><td class="label">Applicant Type:</td><td class="value"><strong>${typeLabel}</strong></td></tr>
                 <tr><td class="label">Domain Applied:</td><td class="value"><strong style="color: #00715D;">${application.domain}</strong></td></tr>
                 <tr><td class="label">Email:</td><td class="value"><a href="mailto:${application.email}" style="color: #00715D;">${application.email}</a></td></tr>
                 <tr><td class="label">Mobile Phone:</td><td class="value"><a href="tel:${application.phone}" style="color: #00715D;">${application.phone}</a></td></tr>
-                <tr><td class="label">College / University:</td><td class="value">${application.college}</td></tr>
-                <tr><td class="label">Course & Passing:</td><td class="value">${application.course} (${application.yearOfStudy}, Passing: ${application.passingYear})</td></tr>
-                <tr><td class="label">Academic Scores:</td><td class="value">10th: ${application.tenthPercentage ?? "N/A"}% | 12th: ${application.twelfthPercentage ?? "N/A"}% | CGPA: ${application.currentCgpa ?? "N/A"}</td></tr>
-                <tr><td class="label">Location:</td><td class="value">${application.city}, ${application.state} - ${application.pincode}</td></tr>
-                <tr><td class="label">Duration & Mode:</td><td class="value">${application.duration} (${application.mode})</td></tr>
+                <tr><td class="label">Highest Qualification:</td><td class="value">${application.highestQualification || "N/A"}</td></tr>
+                <tr><td class="label">College / Company:</td><td class="value">${application.currentOrganization || application.college || "N/A"}</td></tr>
+                <tr><td class="label">State of Origin:</td><td class="value">${application.stateOfOrigin || application.state || "N/A"}</td></tr>
+                <tr><td class="label">Weeks Available:</td><td class="value">${application.weeksAvailable || application.duration || "N/A"}</td></tr>
+                <tr><td class="label">Start Timeline:</td><td class="value">${application.startMonthWeek || "Immediate / Flexible"}</td></tr>
                 <tr><td class="label">Submission Date:</td><td class="value">${formattedDate} IST</td></tr>
               </table>
 
               ${application.whyJoin ? `
-                <h3 style="color: #00715D; font-size: 14px; margin: 16px 0 6px 0;">Statement / Why Join Yuwa:</h3>
+                <h3 style="color: #00715D; font-size: 14px; margin: 16px 0 6px 0;">Statement / Motivation (150 Words):</h3>
                 <div class="message-card" style="font-size: 13px; line-height: 1.5;">${application.whyJoin}</div>
               ` : ""}
 
@@ -686,7 +695,7 @@ export const sendInternshipApplicationEmails = async (application) => {
               </div>
             `
             const adminHtml = emailLayout("New Internship Application", adminContent)
-            await sendMail(adminEmail, `[New Internship] ${application.fullName} - ${application.domain} (${application.college})`, adminHtml)
+            await sendMail(adminEmail, `[New ${typeLabel}] ${application.fullName} - ${application.domain}`, adminHtml)
             logInfo(`[EmailService] Internship application admin alert sent to ${adminEmail}`)
         }
     } catch (error) {

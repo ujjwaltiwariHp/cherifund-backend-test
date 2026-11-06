@@ -333,33 +333,64 @@ model InternshipApplication {
   whatsappNumber      String?
   gender              String?           // Male, Female, Other
   
+  // Applicant Classification & Personal Info (from PDF)
+  applicantType       String            @default("STUDENT") // "STUDENT" | "WORKING_PROFESSIONAL"
+  dob                 String?           // Date of Birth
+  stateOfOrigin       String?           // State of Origin
+  photoUrl            String?           // Cloudinary photo URL
+  photoPublicId       String?           // Cloudinary photo public_id
+  
+  // Addresses (from PDF)
+  currentAddress      String?           @db.Text
+  permanentAddress    String?           @db.Text
+  address             String?           @db.Text // Legacy address
+  city                String?
+  state               String?
+  pincode             String?           // 6-digit PIN
+  
   // Academic Background
-  highestQualification String?          // e.g. 10th, 12th, Diploma, Bachelor's, Master's, Doctorate/Ph.D
-  college             String            // University or College Name
-  course              String?           // Degree e.g. B.Tech, BCA, MCA, MBA, B.Sc
-  specialization      String?           // Specialization / Branch e.g. CSE, IT, Social Work
+  highestQualification String?          // User text input (e.g. B.Tech CSE, MBA, B.A. etc.)
+  college             String?           // University, College, or Institute Name
+  course              String?           // Degree / course currently being pursued (if any)
+  specialization      String?           // Specialization / Branch / Stream
   branch              String?           // Alias for backward compatibility
-  yearOfStudy         String?           @default("Ongoing") // 1st Year, 2nd Year, 3rd Year, 4th Year, Graduated
-  passingYear         Int               // e.g. 2024, 2025, 2026, 2027
-  scoreType           String?           @default("PERCENTAGE") // "CGPA" or "PERCENTAGE"
-  score               Float?            // Strictly 0.0-10.0 for CGPA, 0.0-100.0 for Percentage
-  tenthPercentage     Float?            // Percentage or CGPA
-  twelfthPercentage   Float?            // 12th / Diploma percentage
-  currentCgpa         Float?            // Ongoing CGPA / percentage
+  yearOfStudy         String?           @default("Ongoing")
+  passingYear         Int?              // Passing / Expected year
+  scoreType           String?           @default("PERCENTAGE")
+  score               Float?
+  tenthPercentage     Float?
+  twelfthPercentage   Float?
+  currentCgpa         Float?
   
-  // Internship Preferences
-  domain              String            // Web Dev, Social Work, UI/UX, Content, Marketing, etc.
-  duration            String            // 1 Month, 2 Months, 3 Months, 6 Months
-  mode                InternshipMode    @default(HYBRID)
+  // Skills & Languages (from PDF)
+  areaOfInterest      String?           // Area of interest
+  specificSkills      String?           // Specific skills
+  languages           Json?             // Array of languages spoken/written e.g. ["English", "Hindi"]
   
-  // Location
-  address             String?           @db.Text
-  city                String
-  state               String
-  pincode             String            // 6-digit PIN
+  // Prior Internship Experience (for Students)
+  hasInternshipExp    Boolean?          @default(false)
+  internshipOrgName   String?           // Organization Name
+  internshipLocation  String?           // Location
+  internshipDuration  String?           // Duration of internship
+  internshipProjectNature String?       // Nature of internship project
   
-  // Resume & Links
-  resumeUrl           String            // Secure Cloudinary / Storage URL
+  // Professional Experience (for Working Professionals)
+  currentDesignation  String?           // Current profession / designation
+  currentOrganization String?           // Current company / organization
+  workExperienceYears String?           // Total work experience (e.g. "2 Years")
+  
+  // Internship Preferences & Logistics (from PDF)
+  domain              String            // Health, Women Empowerment, Education, Tech, etc.
+  domainReason        String?           @db.Text // Reason why candidate is suited for this domain
+  weeksAvailable      String?           // No. of weeks you can give in (e.g. "8 Weeks")
+  startMonthWeek      String?           // Month and week you can begin (if selected)
+  familiarWithComputer Boolean?         @default(true) // Whether familiar with Computer/Internet?
+  whyJoin             String?           @db.Text // 150-word write-up on motivation & contribution
+  duration            String?           @default("3 Months") // Legacy duration
+  mode                InternshipMode    @default(HYBRID) // Legacy mode
+  
+  // Resume & Portfolio Links
+  resumeUrl           String            // Secure Cloudinary URL
   resumePublicId      String?
   resumeOriginalName  String?
   resumeMimeType      String?
@@ -367,7 +398,6 @@ model InternshipApplication {
   linkedinUrl         String?
   githubUrl           String?
   portfolioUrl        String?
-  whyJoin             String?           @db.Text // Statement of Purpose / Cover note
   
   // Admin Workflow
   status              InternshipStatus  @default(PENDING)
@@ -380,6 +410,7 @@ model InternshipApplication {
   updatedAt           DateTime          @updatedAt
 
   @@index([status, createdAt(sort: Desc)])
+  @@index([applicantType, status])
   @@index([domain, status])
   @@index([email])
   @@index([phone])

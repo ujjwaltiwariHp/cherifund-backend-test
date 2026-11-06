@@ -1,5 +1,5 @@
 import express from "express";
-import uploadResumeLocal, { multerResumeUpload } from "../../middlewares/multerResume.js";
+import uploadResumeLocal, { multerResumeUpload, careerApplicationUpload } from "../../middlewares/multerResume.js";
 import {
   applyForInternship,
   getPublicTrainees,
@@ -8,10 +8,10 @@ import {
 
 const router = express.Router();
 
-// Public: Apply for internship with resume upload
+// Public: Apply for internship with resume + optional photo upload
 router.post(
   "/apply",
-  multerResumeUpload(uploadResumeLocal.single("resume")),
+  multerResumeUpload(careerApplicationUpload),
   applyForInternship
 );
 

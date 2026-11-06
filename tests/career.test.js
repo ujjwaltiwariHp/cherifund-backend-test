@@ -75,6 +75,7 @@ let mockResumeFile = null;
 jest.mock("../middlewares/multerResume.js", () => {
   const uploadResumeLocal = {
     single: () => (req, res, next) => next(),
+    fields: () => (req, res, next) => next(),
   };
 
   const multerResumeUpload = () => (req, res, next) => {
@@ -88,6 +89,7 @@ jest.mock("../middlewares/multerResume.js", () => {
     __esModule: true,
     default: uploadResumeLocal,
     multerResumeUpload,
+    careerApplicationUpload: (req, res, next) => next(),
   };
 });
 
@@ -249,6 +251,50 @@ describe("Career & Internship Module Tests", () => {
       expect(res.body.success).toBe(true);
       expect(res.body.application.applicationNumber).toBe("YUWA-INT-2026-F89A");
       expect(prisma.internshipApplication.create).toHaveBeenCalled();
+    });
+
+    it("POST /api/V1/web/career/apply should successfully create application for working professional", async () => {
+      mockResumeFile = {
+        path: "/tmp/sample-resume.pdf",
+        originalname: "sample-resume.pdf",
+        mimetype: "application/pdf",
+        size: 1024 * 100,
+      };
+
+      prisma.internshipApplication.create.mockResolvedValueOnce({
+        id: "app-prof-123",
+        applicationNumber: "YUWA-INT-2026-PROF",
+        fullName: "Sneha Patel",
+        email: "sneha@gmail.com",
+        phone: "9876543210",
+        applicantType: "WORKING_PROFESSIONAL",
+        currentDesignation: "Software Engineer",
+        currentOrganization: "Tech Corp",
+        workExperienceYears: "2 Years",
+        domain: "Information Management Systems",
+        createdAt: new Date(),
+      });
+
+      const res = await request(app)
+        .post("/api/V1/web/career/apply")
+        .set("x-bench-key", "yuwa-test-2026")
+        .send({
+          applicantType: "WORKING_PROFESSIONAL",
+          fullName: "Sneha Patel",
+          email: "sneha@gmail.com",
+          phone: "9876543210",
+          highestQualification: "B.Tech CSE",
+          currentDesignation: "Software Engineer",
+          currentOrganization: "Tech Corp",
+          workExperienceYears: "2 Years",
+          domain: "Information Management Systems",
+          weeksAvailable: "12 Weeks",
+          languages: JSON.stringify(["English", "Hindi"]),
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.application.applicantType).toBe("WORKING_PROFESSIONAL");
     });
 
     it("POST /api/V1/web/career/apply should reject if CGPA exceeds 10.0", async () => {
