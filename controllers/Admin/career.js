@@ -22,6 +22,7 @@ export const getAllApplications = async (req, res, next) => {
     search,
     domain,
     status,
+    applicantType,
     mode,
     dateFrom,
     dateTo,
@@ -33,6 +34,10 @@ export const getAllApplications = async (req, res, next) => {
     const skip = (pageNumber - 1) * limitNumber;
 
     const where = {};
+
+    if (applicantType && applicantType !== "all") {
+      where.applicantType = applicantType;
+    }
 
     if (domain && domain !== "all") {
       where.domain = domain;
@@ -63,6 +68,9 @@ export const getAllApplications = async (req, res, next) => {
         { email: { contains: term, mode: "insensitive" } },
         { phone: { contains: term, mode: "insensitive" } },
         { college: { contains: term, mode: "insensitive" } },
+        { currentOrganization: { contains: term, mode: "insensitive" } },
+        { currentDesignation: { contains: term, mode: "insensitive" } },
+        { highestQualification: { contains: term, mode: "insensitive" } },
         { applicationNumber: { contains: term, mode: "insensitive" } },
       ];
     }
@@ -213,6 +221,10 @@ export const deleteApplication = async (req, res, next) => {
 
     if (existing.resumePublicId) {
       await deleteFromCloudinary(existing.resumePublicId, null, "raw");
+    }
+
+    if (existing.photoPublicId) {
+      await deleteFromCloudinary(existing.photoPublicId, null, "image");
     }
 
     await prisma.internshipApplication.delete({
