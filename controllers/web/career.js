@@ -22,13 +22,9 @@ export const STANDARD_DOMAINS = [
   "Fund-raising",
   "Training and Capacity Building",
   "Information Management Systems",
-  "Web Development & Technology",
-  "Mobile Application Development",
-  "UI/UX & Digital Design",
-  "Digital Marketing & Social Media",
-  "Content Writing & Documentation",
-  "Social Work & Community Development",
-  "Data Analytics & Research",
+  "Advocacy and Networking",
+  "Human Resource Management",
+  "Other",
 ];
 
 /**
